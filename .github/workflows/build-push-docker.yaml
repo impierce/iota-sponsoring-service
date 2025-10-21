@@ -1,0 +1,52 @@
+name: Build and push Docker image
+
+on:
+    workflow_dispatch:
+
+env:
+    IMAGE_NAME: ${{ github.repository }}
+    AWS_REGION: ${{ vars.AWS_REGION }}
+    AWS_ACCOUNT: ${{ secrets.AWS_ACCOUNT }}
+
+jobs:
+    build-and-push-image:
+        runs-on: ubuntu-latest
+        permissions:
+            contents: read
+            id-token: write
+
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v5
+
+            - name: Configure AWS credentials
+              uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8 # 5.1.0
+              with:
+                  role-to-assume: arn:aws:iam::${{ env.AWS_ACCOUNT }}:role/GitHubAction-AssumeRoleWithAction
+                  aws-region: ${{ env.AWS_REGION }}
+
+            - name: Log in to container registry
+              uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef # 3.6.0
+              with:
+                  registry: ${{ env.AWS_ACCOUNT }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com
+
+            - name: Extract metadata (tags, labels) for Docker
+              id: meta
+              uses: docker/metadata-action@c1e51972afc2121e065aed6d45c65596fe445f3f # 5.8.0
+              with:
+                  images: ${{ env.AWS_ACCOUNT }}.dkr.ecr.${{ env.AWS_REGION }}.amazonaws.com/${{ env.IMAGE_NAME }}
+                  tags: |
+                      type=sha
+
+            - name: Build and push Docker image
+              id: push
+              uses: docker/build-push-action@263435318d21b8e681c14492fe198d362a7d2c83 # 6.18.0
+              with:
+                  context: .
+                  push: true
+                  tags: ${{ steps.meta.outputs.tags }}
+                  labels: ${{ steps.meta.outputs.labels }}
+                  build-args: |
+                      APP_VERSION=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.version'] }}
+                      DOCKER_BUILD_TIMESTAMP=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.created'] }}
+                      GIT_COMMIT_HASH=${{ fromJSON(steps.meta.outputs.json).labels['org.opencontainers.image.revision'] }}
