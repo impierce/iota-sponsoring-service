@@ -6,7 +6,7 @@ on:
 env:
     IMAGE_NAME: ${{ github.repository }}
     AWS_REGION: ${{ vars.AWS_REGION }}
-    AWS_ACCOUNT: ${{ vars.AWS_ACCOUNT }}
+    AWS_ACCOUNT: ${{ secrets.AWS_ACCOUNT }}
 
 jobs:
     build-and-push-image:
