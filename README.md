@@ -111,9 +111,9 @@ The service provides real-time token balance updates:
 
 Visit http://localhost:8000 to access the interactive GraphQL IDE. This is the easiest way to test both queries and subscriptions.
 
-### GraphQL Queries
+**GraphQL Endpoint:** http://localhost:8000/graphql
 
-**HTTP Endpoint:** POST to http://localhost:8000/graphql
+### GraphQL Queries
 
 **Get current token balance:**
 
@@ -134,8 +134,6 @@ Visit http://localhost:8000 to access the interactive GraphQL IDE. This is the e
 ```
 
 ### GraphQL Subscriptions
-
-**WebSocket Endpoint:** ws://localhost:8000/graphql/ws
 
 **Subscribe to real-time balance updates:**
 
@@ -205,7 +203,7 @@ You can also test subscriptions from the command line using [wscat](https://gith
    ```
 2. Connect to the WebSocket endpoint:
    ```bash
-   wscat -c ws://localhost:8000/graphql/ws -s graphql-ws
+   wscat -c http://localhost:8000/graphql -s graphql-ws
    ```
 3. Send the connection init message:
    ```json

@@ -1,5 +1,6 @@
+pub mod graphql_endpoint_service;
+
 use async_graphql::{EmptyMutation, Schema, http::GraphiQLSource};
-use async_graphql_axum::{GraphQL, GraphQLSubscription};
 use axum::{
     Router,
     response::{self, IntoResponse},
@@ -7,13 +8,16 @@ use axum::{
 };
 use tokio::net::TcpListener;
 
-use crate::model::{Query, TokenSubscription};
+use crate::{
+    graphql_endpoint_service::GraphQLEndpointService,
+    model::{Query, TokenSubscription},
+};
 
 async fn graphiql() -> impl IntoResponse {
     response::Html(
         GraphiQLSource::build()
             .endpoint("/graphql")
-            .subscription_endpoint("/graphql/ws")
+            .subscription_endpoint("/graphql")
             .finish(),
     )
 }
@@ -23,12 +27,7 @@ fn app() -> Router {
 
     Router::new()
         .route("/", get(graphiql))
-        .route(
-            "/graphql",
-            get(|| async { "GraphQL endpoint - use POST for queries" })
-                .post_service(GraphQL::new(schema.clone())),
-        )
-        .route_service("/graphql/ws", GraphQLSubscription::new(schema))
+        .route_service("/graphql", GraphQLEndpointService::new(schema.clone()))
 }
 
 pub async fn run(addr: &str) {

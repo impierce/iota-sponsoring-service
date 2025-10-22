@@ -234,6 +234,7 @@ dependencies = [
  "async-graphql",
  "async-graphql-axum",
  "axum",
+ "bytes",
  "chrono",
  "futures-util",
  "rand",
@@ -241,6 +242,7 @@ dependencies = [
  "slab",
  "tokio",
  "tokio-stream",
+ "tower-service",
 ]
 
 [[package]]
