@@ -7,7 +7,6 @@ async fn main() {
     // Read address from environment variable with fallback
     let addr = env::var("SERVER_ADDRESS").unwrap_or_else(|_| "127.0.0.1:8000".to_string());
 
-    println!("GraphiQL IDE: http://{}", addr);
     println!("Starting server on: {}", addr);
 
     axum_graphql::run(&addr).await;

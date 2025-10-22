@@ -5,7 +5,8 @@ A GraphQL-based service for managing IOTA token sponsoring functionality.
 ## Features
 
 - GraphQL API with GraphiQL IDE
-- Token balance queries (mocked)
+- Dynamic token balance queries with real-time updates
+- WebSocket subscriptions for live data streaming
 - Environment-based configuration
 - Docker support
 
@@ -94,19 +95,27 @@ Run with:
 docker-compose up -d
 ```
 
+## Token Balance Behavior
+
+The service provides real-time token balance updates:
+
+- **Initial Value**: Starts at 50,000 tokens
+- **Automatic Updates**: Updates at a random interval between 2 and 5 seconds
+- **Decrease Pattern**: Each update decreases the balance by a random amount (100-2000 tokens)
+- **Reset Logic**: When the balance would drop below 0, it automatically resets to 50,000
+- **Real-time Delivery**: Updates are pushed to subscribers via WebSocket
+
 ## Usage
 
-### GraphiQL IDE
+### GraphiQL IDE (Recommended)
 
-Visit http://localhost:8000 to access the interactive GraphQL IDE.
+Visit http://localhost:8000 to access the interactive GraphQL IDE. This is the easiest way to test both queries and subscriptions.
 
-### GraphQL Endpoint
+### GraphQL Queries
 
-Send POST requests to http://localhost:8000/graphql
+**HTTP Endpoint:** POST to http://localhost:8000/graphql
 
-### Example Queries
-
-**Get token balance:**
+**Get current token balance:**
 
 ```graphql
 {
@@ -119,18 +128,100 @@ Send POST requests to http://localhost:8000/graphql
 ```json
 {
   "data": {
-    "tokenBalance": 12345
+    "tokenBalance": 48750
   }
 }
 ```
 
-### cURL Example
+### GraphQL Subscriptions
+
+**WebSocket Endpoint:** ws://localhost:8000/graphql/ws
+
+**Subscribe to real-time balance updates:**
+
+```graphql
+subscription {
+  tokenBalanceUpdates {
+    balance
+    timestamp
+    action
+  }
+}
+```
+
+**Real-time response stream:**
+
+```json
+{
+  "data": {
+    "tokenBalanceUpdates": {
+      "balance": 48750,
+      "timestamp": "2025-10-22T10:30:15Z",
+      "action": "decreased"
+    }
+  }
+}
+```
+
+### Testing with GraphiQL
+
+1. **Open GraphiQL:** http://localhost:8000
+2. **For queries** (one-time requests):
+   ```graphql
+   {
+     tokenBalance
+   }
+   ```
+3. **For subscriptions** (real-time updates):
+   ```graphql
+   subscription {
+     tokenBalanceUpdates {
+       balance
+       timestamp
+       action
+     }
+   }
+   ```
+
+### cURL Examples
+
+**Query via HTTP:**
 
 ```bash
 curl -X POST http://localhost:8000/graphql \
   -H "Content-Type: application/json" \
   -d '{"query": "{ tokenBalance }"}'
 ```
+
+**Note:** Subscriptions require WebSocket connections and are best tested using GraphiQL.
+
+#### Command-line WebSocket Testing
+
+You can also test subscriptions from the command line using [wscat](https://github.com/websockets/wscat):
+
+1. Install wscat (if you don't have it):
+   ```bash
+   npm install -g wscat
+   ```
+2. Connect to the WebSocket endpoint:
+   ```bash
+   wscat -c ws://localhost:8000/graphql/ws -s graphql-ws
+   ```
+3. Send the connection init message:
+   ```json
+   { "type": "connection_init" }
+   ```
+4. Send the subscription request:
+   ```json
+   {
+     "id": "1",
+     "type": "start",
+     "payload": {
+       "query": "subscription { tokenBalanceUpdates { balance timestamp action } }"
+     }
+   }
+   ```
+5. You will receive real-time updates in your terminal as the balance changes.
 
 ## Configuration
 
