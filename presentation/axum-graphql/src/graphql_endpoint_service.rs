@@ -50,11 +50,9 @@ where
             .unwrap_or(false);
 
         if is_websocket {
-            let mut service = GraphQLSubscription::new(self.executor.clone());
-            service.call(req)
+            GraphQLSubscription::new(self.executor.clone()).call(req)
         } else {
-            let mut service = GraphQL::new(self.executor.clone());
-            service.call(req)
+            GraphQL::new(self.executor.clone()).call(req)
         }
     }
 }

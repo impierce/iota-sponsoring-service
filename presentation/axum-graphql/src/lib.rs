@@ -27,7 +27,7 @@ fn app() -> Router {
 
     Router::new()
         .route("/", get(graphiql))
-        .route_service("/graphql", GraphQLEndpointService::new(schema.clone()))
+        .route_service("/graphql", GraphQLEndpointService::new(schema))
 }
 
 pub async fn run(addr: &str) {
@@ -35,7 +35,6 @@ pub async fn run(addr: &str) {
 
     println!("GraphiQL IDE: http://{}", addr);
     println!("GraphQL endpoint: http://{}/graphql", addr);
-    println!("WebSocket endpoint: ws://{}/graphql/ws", addr);
 
     axum::serve(TcpListener::bind(addr).await.unwrap(), app)
         .await
