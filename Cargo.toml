@@ -5,12 +5,22 @@ edition = "2024"
 
 [dependencies]
 axum-graphql = { path = "presentation/axum-graphql" }
+composition-root = { path = "infrastructure/composition-root" }
+
 dotenvy = "0.15"
 tokio.workspace = true
 
 [workspace]
 resolver = "2"
 members = [
+    "application",
+
+    # Domain libraries
+    "domain/balance-management",
+
+    # Infrastructure libraries
+    "infrastructure/composition-root",
+
     # Presentation libraries
     "presentation/axum-graphql",
 ]

@@ -1,12 +1,11 @@
 [package]
-name = "axum-graphql"
+name = "composition-root"
 version = "0.1.0"
 edition = "2024"
 
 [dependencies]
 application = { path = "../../application" }
 balance-management = { path = "../../domain/balance-management" }
-composition-root = { path = "../../infrastructure/composition-root" }
 
 async-graphql = "7.0"
 async-graphql-axum = "7.0"
