@@ -44,9 +44,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "anyhow"
+version = "1.0.100"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a23eb6b1614318a8071c9b2521f36b424b2c83db5eb3a0fead4a6c0809af6e61"
+
+[[package]]
 name = "application"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "async-trait",
  "balance-management",
  "cqrs-es",
@@ -259,6 +266,7 @@ dependencies = [
 name = "axum-graphql"
 version = "0.1.0"
 dependencies = [
+ "anyhow",
  "application",
  "async-graphql",
  "async-graphql-axum",

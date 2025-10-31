@@ -20,6 +20,8 @@ pub struct Group {
     pub balance: u64,
     /// A collection of unique client IDs that are members of this group.
     pub members: HashSet<String>,
+    /// Indicates whether the group has been deleted.
+    pub is_deleted: bool,
 }
 
 #[async_trait]
@@ -42,7 +44,10 @@ impl Aggregate for Group {
 
         match command {
             CreateGroup { id, name } => Ok(vec![GroupCreated { id, name }]),
-            DeleteGroup { id } => Ok(vec![GroupDeleted { id }]),
+            DeleteGroup { id } => Ok(vec![GroupDeleted {
+                id,
+                is_deleted: true,
+            }]),
             AddClientToGroup { client_id } => Ok(vec![ClientAddedToGroup {
                 id: self.id.clone(),
                 client_id,
@@ -70,11 +75,9 @@ impl Aggregate for Group {
                 self.balance = 0;
                 self.members = HashSet::new();
             }
-            GroupDeleted { id: _ } => {
-                self.id.clear();
-                self.name.clear();
-                self.balance = 0;
-                self.members.clear();
+            GroupDeleted { id: _, is_deleted } => {
+                *self = Self::default();
+                self.is_deleted = is_deleted;
             }
             ClientAddedToGroup { id: _, client_id } => {
                 self.members.insert(client_id);

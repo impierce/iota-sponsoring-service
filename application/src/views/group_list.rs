@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::views::group::GroupView;
 
+pub const GROUP_LIST_VIEW_ID: &str = "group_list";
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct GroupListView(HashMap<String, GroupView>);
 

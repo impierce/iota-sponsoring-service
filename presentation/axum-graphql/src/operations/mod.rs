@@ -12,7 +12,7 @@ use tokio::sync::{RwLock, broadcast};
 use tokio::time::{Duration, Instant};
 
 #[derive(Clone, SimpleObject)]
-pub struct ClientUpdate {
+pub struct ClientDto {
     pub id: String,
     pub name: String,
     pub wallet_address: String,
@@ -20,7 +20,7 @@ pub struct ClientUpdate {
     pub group_id: Option<String>,
 }
 
-impl From<ClientView> for ClientUpdate {
+impl From<ClientView> for ClientDto {
     fn from(view: ClientView) -> Self {
         let inner = view.into_inner();
         Self {
@@ -34,14 +34,14 @@ impl From<ClientView> for ClientUpdate {
 }
 
 #[derive(Clone, SimpleObject)]
-pub struct GroupUpdate {
+pub struct GroupDto {
     pub id: String,
     pub name: String,
     pub balance: u64,
     pub members: HashSet<String>,
 }
 
-impl From<GroupView> for GroupUpdate {
+impl From<GroupView> for GroupDto {
     fn from(view: GroupView) -> Self {
         let inner = view.into_inner();
         Self {

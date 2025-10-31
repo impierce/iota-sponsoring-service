@@ -6,6 +6,7 @@ edition = "2024"
 [dependencies]
 balance-management = { path = "../domain/balance-management" }
 
+anyhow.workspace = true
 async-trait.workspace = true
 cqrs-es.workspace = true
 serde.workspace = true

@@ -11,6 +11,7 @@ pub enum ClientEvent {
     ClientRemoved {
         id: String,
         group_id: Option<String>,
+        is_deleted: bool,
     },
     ClientAssignedToGroup {
         id: String,

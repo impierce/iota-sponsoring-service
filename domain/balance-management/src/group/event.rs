@@ -9,6 +9,7 @@ pub enum GroupEvent {
     },
     GroupDeleted {
         id: String,
+        is_deleted: bool,
     },
     ClientAddedToGroup {
         id: String,

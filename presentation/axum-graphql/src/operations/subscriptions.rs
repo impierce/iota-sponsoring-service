@@ -1,4 +1,4 @@
-use super::{ClientUpdate, GroupUpdate, TokenBalanceUpdate};
+use super::{ClientDto, GroupDto, TokenBalanceUpdate};
 use crate::operations::get_shared_balance;
 use application::views::{client::ClientView, group::GroupView};
 use async_graphql::Subscription;
@@ -36,14 +36,14 @@ impl SubscriptionRoot {
     }
 
     /// Subscribe to client updates
-    async fn client_updates(&self) -> impl Stream<Item = ClientUpdate> {
+    async fn client_updates(&self) -> impl Stream<Item = ClientDto> {
         let receiver = self.client_query_receiver.resubscribe();
         tokio_stream::wrappers::BroadcastStream::new(receiver)
             .filter_map(|result| async move { result.map(|view| view.into()).ok() })
     }
 
     // Subscribe to group updates
-    async fn group_updates(&self) -> impl Stream<Item = GroupUpdate> {
+    async fn group_updates(&self) -> impl Stream<Item = GroupDto> {
         let receiver = self.group_query_receiver.resubscribe();
         tokio_stream::wrappers::BroadcastStream::new(receiver)
             .filter_map(|result| async move { result.map(|view| view.into()).ok() })

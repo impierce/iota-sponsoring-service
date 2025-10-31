@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::views::client::ClientView;
 
+pub const CLIENT_LIST_VIEW_ID: &str = "client_list";
+
 #[derive(Serialize, Deserialize, Debug, Clone, Default)]
 pub struct ClientListView(HashMap<String, ClientView>);
 

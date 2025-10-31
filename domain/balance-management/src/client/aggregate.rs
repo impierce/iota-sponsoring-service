@@ -22,6 +22,8 @@ pub struct Client {
     /// An optional ID linking the client to a group. This will be `Some(group_id)`
     /// if the client is a member of a group, and `None` otherwise.
     pub group_id: Option<String>,
+    /// Indicates whether the client has been deleted.
+    pub is_deleted: bool,
 }
 
 #[async_trait]
@@ -55,6 +57,7 @@ impl Aggregate for Client {
             RemoveClient { id } => Ok(vec![ClientRemoved {
                 id,
                 group_id: self.group_id.clone(),
+                is_deleted: true,
             }]),
             AssignClientToGroup { group_id } => Ok(vec![ClientAssignedToGroup {
                 id: self.id.clone(),
@@ -88,12 +91,13 @@ impl Aggregate for Client {
                 self.name = name;
                 self.wallet_address = wallet_address;
             }
-            ClientRemoved { id: _, group_id } => {
-                self.id = "".to_string();
-                self.name = "".to_string();
-                self.wallet_address = "".to_string();
-                self.balance = None;
-                self.group_id = group_id;
+            ClientRemoved {
+                id: _,
+                group_id: _,
+                is_deleted,
+            } => {
+                *self = Self::default();
+                self.is_deleted = is_deleted;
             }
             ClientAssignedToGroup { id: _, group_id } => {
                 self.group_id = Some(group_id);

@@ -1,5 +1,9 @@
+use anyhow::Result;
 use application::views::{
-    client::ClientView, client_list::ClientListView, group::GroupView, group_list::GroupListView,
+    client::ClientView,
+    client_list::{CLIENT_LIST_VIEW_ID, ClientListView},
+    group::GroupView,
+    group_list::{GROUP_LIST_VIEW_ID, GroupListView},
 };
 use async_graphql::Object;
 use balance_management::{client::aggregate::Client, group::aggregate::Group};
@@ -7,7 +11,7 @@ use cqrs_es::persist::ViewRepository;
 use mongo_es::MongoViewRepository;
 use std::sync::Arc;
 
-use crate::operations::{ClientUpdate, GroupUpdate, get_shared_balance};
+use crate::operations::{ClientDto, GroupDto, get_shared_balance};
 
 #[derive(Clone)]
 pub struct QueryRoot {
@@ -42,50 +46,56 @@ impl QueryRoot {
     }
 
     /// Returns a client by ID
-    async fn get_client(&self, client_id: String) -> Option<ClientUpdate> {
-        match self.client_view.load(&client_id).await {
-            Ok(Some(view)) => Some(view.into()),
-            _ => None,
-        }
+    async fn get_client(&self, id: String) -> Result<Option<ClientDto>> {
+        Ok(self.client_view.load(&id).await?.and_then(|client_view| {
+            (!client_view.is_deleted).then(|| ClientDto::from(client_view))
+        }))
     }
 
     /// Returns the list of all clients
-    async fn get_client_list(&self) -> Option<Vec<ClientUpdate>> {
-        match self.client_list_view.load("client_list").await {
-            Ok(Some(view)) => {
-                let clients: Vec<ClientUpdate> = view
+    async fn get_client_list(&self) -> Result<Vec<ClientDto>> {
+        Ok(self
+            .client_list_view
+            .load(CLIENT_LIST_VIEW_ID)
+            .await?
+            .map(|client_list_view| {
+                client_list_view
                     .into_inner()
                     .values()
                     .cloned()
-                    .map(ClientUpdate::from)
-                    .collect();
-                Some(clients)
-            }
-            _ => None,
-        }
+                    .filter_map(|client_view| {
+                        (!client_view.is_deleted).then(|| ClientDto::from(client_view))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default())
     }
 
     /// Returns a group by ID
-    async fn get_group(&self, group_id: String) -> Option<GroupUpdate> {
-        match self.group_view.load(&group_id).await {
-            Ok(Some(view)) => Some(view.into()),
-            _ => None,
-        }
+    async fn get_group(&self, id: String) -> Result<Option<GroupDto>> {
+        Ok(self
+            .group_view
+            .load(&id)
+            .await?
+            .and_then(|group_view| (!group_view.is_deleted).then(|| GroupDto::from(group_view))))
     }
 
     /// Returns the list of all groups
-    async fn get_group_list(&self) -> Option<Vec<GroupUpdate>> {
-        match self.group_list_view.load("group_list").await {
-            Ok(Some(view)) => {
-                let groups: Vec<GroupUpdate> = view
+    async fn get_group_list(&self) -> Result<Vec<GroupDto>> {
+        Ok(self
+            .group_list_view
+            .load(GROUP_LIST_VIEW_ID)
+            .await?
+            .map(|group_list_view| {
+                group_list_view
                     .into_inner()
                     .values()
                     .cloned()
-                    .map(GroupUpdate::from)
-                    .collect();
-                Some(groups)
-            }
-            _ => None,
-        }
+                    .filter_map(|group_view| {
+                        (!group_view.is_deleted).then(|| GroupDto::from(group_view))
+                    })
+                    .collect()
+            })
+            .unwrap_or_default())
     }
 }
