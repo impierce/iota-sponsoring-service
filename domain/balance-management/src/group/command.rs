@@ -1,19 +1,21 @@
+use uuid::Uuid;
+
 pub enum GroupCommand {
     /// Command to create a new group.
-    CreateGroup { id: String, name: String },
+    CreateGroup { group_id: Uuid, name: String },
 
     /// Command to delete an existing group.
-    DeleteGroup { id: String },
+    DeleteGroup { group_id: Uuid },
 
     /// Command to add a client to a group.
-    AddClientToGroup { client_id: String },
+    AddClientToGroup { client_id: Uuid },
 
     /// Command to remove a client from a group.
-    RemoveClientFromGroup { client_id: String },
+    RemoveClientFromGroup { client_id: Uuid },
 
     /// Command to allocate a shared balance to a group.
-    AllocateBalanceToGroup { id: String, amount: u64 },
+    AllocateBalanceToGroup { group_id: Uuid, amount: u64 },
 
     /// Command to withdraw from a group's shared balance.
-    WithdrawBalanceFromGroup { id: String, amount: u64 },
+    WithdrawBalanceFromGroup { group_id: Uuid, amount: u64 },
 }

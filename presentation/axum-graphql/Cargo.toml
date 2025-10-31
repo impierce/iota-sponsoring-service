@@ -8,8 +8,8 @@ application = { path = "../../application" }
 balance-management = { path = "../../domain/balance-management" }
 composition-root = { path = "../../infrastructure/composition-root" }
 
-anyhow.workspace = true
-async-graphql = "7.0"
+anyhow = "1.0"
+async-graphql = { version = "7.0", features = ["uuid"] }
 async-graphql-axum = "7.0"
 async-trait.workspace = true
 axum = { version = "0.8", features = ["ws"] }
@@ -22,6 +22,7 @@ slab = "0.4"
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tower-service = "0.3"
+uuid.workspace = true
 
 cqrs-es.workspace = true
 mongo-es = "0.3"

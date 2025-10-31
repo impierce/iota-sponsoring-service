@@ -1,40 +1,41 @@
 use cqrs_es::DomainEvent;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, strum::Display)]
 pub enum ClientEvent {
     ClientRegistered {
-        id: String,
+        client_id: Uuid,
         name: String,
         wallet_address: String,
     },
     ClientRemoved {
-        id: String,
-        group_id: Option<String>,
+        client_id: Uuid,
+        group_id: Option<Uuid>,
         is_deleted: bool,
     },
     ClientAssignedToGroup {
-        id: String,
-        group_id: String,
+        client_id: Uuid,
+        group_id: Uuid,
     },
     ClientRemovedFromGroup {
-        id: String,
-        group_id: Option<String>,
+        client_id: Uuid,
+        group_id: Option<Uuid>,
     },
     BalanceAllocatedToClient {
-        id: String,
+        client_id: Uuid,
         amount: u64,
     },
     BalanceWithdrawnFromClient {
-        id: String,
+        client_id: Uuid,
         amount: u64,
     },
     ClientBalanceDecremented {
-        id: String,
+        client_id: Uuid,
         fee_paid: u64,
     },
     ClientBalanceRanLow {
-        id: String,
+        client_id: Uuid,
         current_balance: u64,
     },
 }

@@ -6,6 +6,7 @@ use balance_management::{
     group::{aggregate::Group, command::GroupCommand},
 };
 use cqrs_es::{CqrsFramework, EventStore, persist::ViewRepository};
+use uuid::Uuid;
 
 use crate::views::{
     client::ClientView,
@@ -50,27 +51,29 @@ where
         }
     }
 
-    pub async fn create_group(&self, id: String, name: String) -> Result<GroupView> {
+    pub async fn create_group(&self, group_id: Uuid, name: String) -> Result<GroupView> {
         let command = GroupCommand::CreateGroup {
-            id: id.clone(),
+            group_id: group_id.clone(),
             name,
         };
 
-        self.group_handler.execute(&id, command).await?;
+        self.group_handler
+            .execute(&group_id.to_string(), command)
+            .await?;
 
         self.group_view
-            .load(&id)
+            .load(&group_id.to_string())
             .await?
-            .ok_or_else(|| anyhow!("Group view not found after creating group `{id}`"))
+            .ok_or_else(|| anyhow!("Group view not found after creating group `{group_id}`"))
     }
 
-    pub async fn delete_group(&self, id: String) -> Result<String> {
+    pub async fn delete_group(&self, group_id: Uuid) -> Result<Uuid> {
         let client_list = self.client_list_view.load(CLIENT_LIST_VIEW_ID).await?;
 
         if let Some(client_list) = client_list {
             for (client_id, client_view) in client_list.into_inner().iter() {
                 if let Some(client_group_id) = &client_view.group_id {
-                    if client_group_id == &id {
+                    if client_group_id == &group_id {
                         let command = ClientCommand::RemoveClientFromGroup;
 
                         self.client_handler.execute(client_id, command).await?
@@ -79,91 +82,121 @@ where
             }
         }
 
-        let command = GroupCommand::DeleteGroup { id: id.clone() };
+        let command = GroupCommand::DeleteGroup {
+            group_id: group_id.clone(),
+        };
 
-        self.group_handler.execute(&id, command).await?;
+        self.group_handler
+            .execute(&group_id.to_string(), command)
+            .await?;
 
-        Ok(id)
+        Ok(group_id)
     }
 
-    pub async fn add_client_to_group(&self, id: String, client_id: String) -> Result<GroupView> {
+    pub async fn add_client_to_group(&self, group_id: Uuid, client_id: Uuid) -> Result<GroupView> {
+        let command = ClientCommand::AssignClientToGroup {
+            group_id: group_id.clone(),
+        };
+
+        self.client_handler
+            .execute(&client_id.to_string(), command)
+            .await?;
+
         let command = GroupCommand::AddClientToGroup {
             client_id: client_id.clone(),
         };
 
-        self.group_handler.execute(&id, command).await?;
+        self.group_handler
+            .execute(&group_id.to_string(), command)
+            .await?;
 
-        let command = ClientCommand::AssignClientToGroup {
-            group_id: id.clone(),
-        };
-
-        self.client_handler.execute(&client_id, command).await?;
-
-        self.group_view.load(&id).await?.ok_or_else(|| {
-            anyhow!("Group view not found after adding client `{client_id}` to group `{id}`")
-        })
+        self.group_view
+            .load(&group_id.to_string())
+            .await?
+            .ok_or_else(|| {
+                anyhow!(
+                    "Group view not found after adding client `{client_id}` to group `{group_id}`"
+                )
+            })
     }
 
     pub async fn remove_client_from_group(
         &self,
-        id: String,
-        client_id: String,
+        group_id: Uuid,
+        client_id: Uuid,
     ) -> Result<GroupView> {
         let command = GroupCommand::RemoveClientFromGroup {
             client_id: client_id.clone(),
         };
 
-        self.group_handler.execute(&id, command).await?;
+        self.group_handler
+            .execute(&group_id.to_string(), command)
+            .await?;
 
         let command = ClientCommand::RemoveClientFromGroup;
 
-        self.client_handler.execute(&client_id, command).await?;
+        self.client_handler
+            .execute(&client_id.to_string(), command)
+            .await?;
 
-        self.group_view.load(&id).await?.ok_or_else(|| {
-            anyhow!("Group view not found after adding client `{client_id}` to group `{id}`")
-        })
+        self.group_view
+            .load(&group_id.to_string())
+            .await?
+            .ok_or_else(|| {
+                anyhow!(
+                    "Group view not found after adding client `{client_id}` to group `{group_id}`"
+                )
+            })
     }
 
     pub async fn register_client(
         &self,
-        id: String,
+        client_id: Uuid,
         name: String,
         wallet_address: String,
     ) -> Result<ClientView> {
         let command = ClientCommand::RegisterClient {
-            id: id.clone(),
+            client_id: client_id.clone(),
             name,
             wallet_address,
         };
 
-        self.client_handler.execute(&id, command).await?;
+        self.client_handler
+            .execute(&client_id.to_string(), command)
+            .await?;
 
         self.client_view
-            .load(&id)
+            .load(&client_id.to_string())
             .await?
-            .ok_or_else(|| anyhow!("Client view not found after registering client `{id}`"))
+            .ok_or_else(|| anyhow!("Client view not found after registering client `{client_id}`"))
     }
 
-    pub async fn remove_client(&self, id: String) -> Result<String> {
-        let client_view = self.client_view.load(&id).await?;
+    pub async fn remove_client(&self, client_id: Uuid) -> Result<Uuid> {
+        let client_view = self.client_view.load(&client_id.to_string()).await?;
         let client_view = if let Some(client_view) = client_view {
             client_view
         } else {
-            return Ok(id);
+            return Ok(client_id);
         };
 
         if let Some(group_id) = &client_view.group_id {
             let command = GroupCommand::RemoveClientFromGroup {
-                client_id: id.clone(),
+                client_id: client_id.clone(),
             };
 
-            self.group_handler.execute(&group_id, command).await?;
+            self.group_handler
+                .execute(&group_id.to_string(), command)
+                .await?;
         }
 
-        let command = ClientCommand::RemoveClient { id: id.clone() };
+        let command = ClientCommand::RemoveClient {
+            client_id: client_id.clone(),
+        };
 
-        self.client_handler.execute(&id, command).await?;
+        self.client_handler
+            .execute(&client_id.to_string(), command)
+            .await?;
 
-        Ok(id)
+        Ok(client_id)
     }
 }

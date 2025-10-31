@@ -1,16 +1,18 @@
+use uuid::Uuid;
+
 pub enum ClientCommand {
     /// Command to register a new client in the system.
     RegisterClient {
-        id: String,
+        client_id: Uuid,
         name: String,
         wallet_address: String,
     },
 
     /// Command to remove an existing client.
-    RemoveClient { id: String },
+    RemoveClient { client_id: Uuid },
 
     /// Command to assign a client to a group.
-    AssignClientToGroup { group_id: String },
+    AssignClientToGroup { group_id: Uuid },
 
     /// Command to remove a client from its group.
     RemoveClientFromGroup,

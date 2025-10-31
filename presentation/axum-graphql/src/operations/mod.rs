@@ -10,21 +10,22 @@ use std::collections::HashSet;
 use std::sync::Arc;
 use tokio::sync::{RwLock, broadcast};
 use tokio::time::{Duration, Instant};
+use uuid::Uuid;
 
 #[derive(Clone, SimpleObject)]
 pub struct ClientDto {
-    pub id: String,
+    pub client_id: Uuid,
     pub name: String,
     pub wallet_address: String,
     pub balance: Option<u64>,
-    pub group_id: Option<String>,
+    pub group_id: Option<Uuid>,
 }
 
 impl From<ClientView> for ClientDto {
     fn from(view: ClientView) -> Self {
         let inner = view.into_inner();
         Self {
-            id: inner.id,
+            client_id: inner.client_id,
             name: inner.name,
             wallet_address: inner.wallet_address,
             balance: inner.balance,
@@ -35,17 +36,17 @@ impl From<ClientView> for ClientDto {
 
 #[derive(Clone, SimpleObject)]
 pub struct GroupDto {
-    pub id: String,
+    pub group_id: Uuid,
     pub name: String,
     pub balance: u64,
-    pub members: HashSet<String>,
+    pub members: HashSet<Uuid>,
 }
 
 impl From<GroupView> for GroupDto {
     fn from(view: GroupView) -> Self {
         let inner = view.into_inner();
         Self {
-            id: inner.id,
+            group_id: inner.group_id,
             name: inner.name,
             balance: inner.balance,
             members: inner.members,

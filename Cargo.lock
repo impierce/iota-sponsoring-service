@@ -102,6 +102,7 @@ dependencies = [
  "static_assertions_next",
  "tempfile",
  "thiserror 1.0.69",
+ "uuid",
 ]
 
 [[package]]
@@ -285,6 +286,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tower-service",
+ "uuid",
 ]
 
 [[package]]

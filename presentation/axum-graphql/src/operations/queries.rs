@@ -10,6 +10,7 @@ use balance_management::{client::aggregate::Client, group::aggregate::Group};
 use cqrs_es::persist::ViewRepository;
 use mongo_es::MongoViewRepository;
 use std::sync::Arc;
+use uuid::Uuid;
 
 use crate::operations::{ClientDto, GroupDto, get_shared_balance};
 
@@ -46,10 +47,14 @@ impl QueryRoot {
     }
 
     /// Returns a client by ID
-    async fn get_client(&self, id: String) -> Result<Option<ClientDto>> {
-        Ok(self.client_view.load(&id).await?.and_then(|client_view| {
-            (!client_view.is_deleted).then(|| ClientDto::from(client_view))
-        }))
+    async fn get_client(&self, client_id: Uuid) -> Result<Option<ClientDto>> {
+        Ok(self
+            .client_view
+            .load(&client_id.to_string())
+            .await?
+            .and_then(|client_view| {
+                (!client_view.is_deleted).then(|| ClientDto::from(client_view))
+            }))
     }
 
     /// Returns the list of all clients
@@ -72,10 +77,10 @@ impl QueryRoot {
     }
 
     /// Returns a group by ID
-    async fn get_group(&self, id: String) -> Result<Option<GroupDto>> {
+    async fn get_group(&self, group_id: Uuid) -> Result<Option<GroupDto>> {
         Ok(self
             .group_view
-            .load(&id)
+            .load(&group_id.to_string())
             .await?
             .and_then(|group_view| (!group_view.is_deleted).then(|| GroupDto::from(group_view))))
     }

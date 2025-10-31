@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use cqrs_es::Aggregate;
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 use super::{
     command::ClientCommand,
@@ -11,7 +12,7 @@ use super::{
 #[derive(Serialize, Deserialize, Debug, Clone, Default, Eq, PartialEq, Hash)]
 pub struct Client {
     /// The unique identifier for the client.
-    pub id: String,
+    pub client_id: Uuid,
     /// A user-friendly name for the client.
     pub name: String,
     /// The client's IOTA wallet address for transactions.
@@ -21,7 +22,7 @@ pub struct Client {
     pub balance: Option<u64>,
     /// An optional ID linking the client to a group. This will be `Some(group_id)`
     /// if the client is a member of a group, and `None` otherwise.
-    pub group_id: Option<String>,
+    pub group_id: Option<Uuid>,
     /// Indicates whether the client has been deleted.
     pub is_deleted: bool,
 }
@@ -43,36 +44,44 @@ impl Aggregate for Client {
         _service: &Self::Services,
     ) -> Result<Vec<Self::Event>, Self::Error> {
         use ClientCommand::*;
+        use ClientError::*;
+
+        // --- Validation before processing the command ---
+        let has_been_created = !self.client_id.is_nil();
 
         match command {
             RegisterClient {
-                id,
+                client_id,
                 name,
                 wallet_address,
             } => Ok(vec![ClientRegistered {
-                id,
+                client_id,
                 name,
                 wallet_address,
             }]),
-            RemoveClient { id } => Ok(vec![ClientRemoved {
-                id,
+
+            // For all other commands, the deck must exist first.
+            _ if !has_been_created => Err(ClientNotFound),
+
+            RemoveClient { client_id } => Ok(vec![ClientRemoved {
+                client_id,
                 group_id: self.group_id.clone(),
                 is_deleted: true,
             }]),
             AssignClientToGroup { group_id } => Ok(vec![ClientAssignedToGroup {
-                id: self.id.clone(),
+                client_id: self.client_id.clone(),
                 group_id,
             }]),
             RemoveClientFromGroup => Ok(vec![ClientRemovedFromGroup {
-                id: self.id.clone(),
+                client_id: self.client_id.clone(),
                 group_id: None,
             }]),
             AllocateBalanceToClient { amount } => Ok(vec![BalanceAllocatedToClient {
-                id: self.id.clone(),
+                client_id: self.client_id.clone(),
                 amount,
             }]),
             WithdrawBalanceFromClient { amount } => Ok(vec![BalanceWithdrawnFromClient {
-                id: self.id.clone(),
+                client_id: self.client_id.clone(),
                 amount,
             }]),
         }
@@ -83,26 +92,32 @@ impl Aggregate for Client {
 
         match event {
             ClientRegistered {
-                id,
+                client_id,
                 name,
                 wallet_address,
             } => {
-                self.id = id;
+                self.client_id = client_id;
                 self.name = name;
                 self.wallet_address = wallet_address;
             }
             ClientRemoved {
-                id: _,
+                client_id: _,
                 group_id: _,
                 is_deleted,
             } => {
                 *self = Self::default();
                 self.is_deleted = is_deleted;
             }
-            ClientAssignedToGroup { id: _, group_id } => {
+            ClientAssignedToGroup {
+                client_id: _,
+                group_id,
+            } => {
                 self.group_id = Some(group_id);
             }
-            ClientRemovedFromGroup { id: _, group_id } => {
+            ClientRemovedFromGroup {
+                client_id: _,
+                group_id,
+            } => {
                 self.group_id = group_id;
             }
             _ => todo!(),
