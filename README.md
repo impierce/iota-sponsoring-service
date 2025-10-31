@@ -51,45 +51,7 @@ GraphiQL IDE: http://127.0.0.1:8000
 Starting server on: 127.0.0.1:8000
 ```
 
-## Docker Deployment
-
-### 1. Build Docker Image
-
-```bash
-docker build -t iota-sponsoring-service .
-```
-
-### 2. Run Container
-
-**Basic run:**
-
-```bash
-docker run -p 8000:8000 iota-sponsoring-service
-```
-
-**With custom configuration:**
-
-```bash
-docker run -p 8000:8000 -e SERVER_ADDRESS=0.0.0.0:8000 iota-sponsoring-service
-```
-
-### 3. Docker Compose (Optional)
-
-Create `docker-compose.yml`:
-
-```yaml
-version: "3.8"
-services:
-  iota-service:
-    build: .
-    ports:
-      - "8000:8000"
-    environment:
-      - SERVER_ADDRESS=0.0.0.0:8000
-    restart: unless-stopped
-```
-
-Run with:
+Or use Docker Compose:
 
 ```bash
 docker-compose up -d
@@ -232,11 +194,64 @@ You can also test subscriptions from the command line using [wscat](https://gith
 ### Project Structure
 
 ```
-├── src/
-│   └── main.rs                 # Main application entry point
-├── presentation/
-│   └── axum-graphql/          # GraphQL presentation layer
-├── Dockerfile                 # Docker configuration
-├── docker-compose.yml         # Docker Compose setup
-└── README.md                  # This file
+.
+├── application
+│   ├── Cargo.toml
+│   └── src
+│       ├── lib.rs
+│       ├── queries
+│       │   ├── custom_query.rs
+│       │   ├── generic_query_with_sender.rs
+│       │   ├── list_all_query.rs
+│       │   └── mod.rs
+│       ├── services
+│       │   ├── balance_management_service.rs
+│       │   └── mod.rs
+│       └── views
+│           ├── client_list.rs
+│           ├── client.rs
+│           ├── group_list.rs
+│           ├── group.rs
+│           └── mod.rs
+├── Cargo.lock
+├── Cargo.toml
+├── compose.yaml
+├── Dockerfile
+├── domain
+│   └── balance-management
+│       ├── Cargo.toml
+│       └── src
+│           ├── client
+│           │   ├── aggregate.rs
+│           │   ├── command.rs
+│           │   ├── error.rs
+│           │   ├── event.rs
+│           │   └── mod.rs
+│           ├── group
+│           │   ├── aggregate.rs
+│           │   ├── command.rs
+│           │   ├── error.rs
+│           │   ├── event.rs
+│           │   └── mod.rs
+│           └── lib.rs
+├── infrastructure
+│   └── composition-root
+│       ├── Cargo.toml
+│       └── src
+│           └── lib.rs
+├── LICENSE
+├── presentation
+│   └── axum-graphql
+│       ├── Cargo.toml
+│       └── src
+│           ├── graphql_endpoint_service.rs
+│           ├── lib.rs
+│           └── operations
+│               ├── mod.rs
+│               ├── mutations.rs
+│               ├── queries.rs
+│               └── subscriptions.rs
+├── README.md
+└── src
+    └── main.rs
 ```

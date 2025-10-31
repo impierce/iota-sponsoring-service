@@ -1,21 +1,16 @@
 services:
   mongodb:
-    image: mongo:7.0
-    command: ["--replSet", "rs0", "--bind_ip_all", "--port", "27017"]
+    image: mongo:8
+    restart: always
     ports:
       - 27017:27017
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    command: "mongod --replSet rs0"
     healthcheck:
-      test: echo "try { rs.status() } catch (err) { rs.initiate({_id:'rs0',members:[{_id:0,host:'host.docker.internal:27017'}]}) }" | mongosh --port 27017 --quiet
+      test: |
+        mongosh --quiet --eval "try { rs.status().ok } catch (e) { rs.initiate({ _id: 'rs0', members: [{ _id: 0, host: 'localhost:27017' }] }).ok }"
       interval: 5s
-      timeout: 30s
-      start_period: 0s
-      start_interval: 1s
-      retries: 30
-    volumes:
-      - "mongodb_data:/data/db"
-      - "mongodb_config:/data/configdb"
+      timeout: 5s
+      retries: 5
 
   iota-sponsoring-service:
     build: .
@@ -23,7 +18,7 @@ services:
       - mongodb
     environment:
       - SERVER_ADDRESS=0.0.0.0:8000
-      - MONGODB_URI=mongodb://mongodb:27017/ssi-agent?directConnection=true&retryWrites=false&replicaSet=rs0
+      - MONGODB_URI=mongodb://mongodb:27017/iota-sponsoring-service?directConnection=true&retryWrites=false&replicaSet=rs0
     ports:
       - "8000:8000"
     restart: unless-stopped
