@@ -1,14 +1,36 @@
 pub mod graphql_endpoint_service;
 pub mod operations;
 
+use std::{collections::HashMap, sync::Arc};
+
+use application::{
+    services::{
+        allocation_service::AllocationService,
+        authorize_transaction_service::AuthorizeTransactionService,
+        balance_management_service::BalanceManagementService,
+    },
+    views::sponsor_wallet::SPONSOR_WALLET_VIEW_ID,
+};
 use async_graphql::{Schema, http::GraphiQLSource};
 use axum::{
-    Router,
+    Json, Router,
+    extract::State,
     response::{self, IntoResponse},
-    routing::get,
+    routing::{get, post},
 };
+use balance_management::{client::aggregate::Client, group::aggregate::Group};
+use chrono::{DateTime, Utc};
 use composition_root::CompositionRoot;
+use cqrs_es::persist::PersistedEventStore;
+use iota_gas_station::access_controller::hook::{
+    ExecuteTxHookRequest, ExecuteTxOkResponse, SkippableDecision,
+};
+use iota_json_rpc_types::IotaTransactionBlockEffects;
+use mongo_es::MongoEventRepository;
+use serde::{Deserialize, Serialize};
+use serde_json::Value;
 use tokio::net::TcpListener;
+use wallet_integration::sponsor_wallet::aggregate::SponsorWallet;
 
 use crate::{
     graphql_endpoint_service::GraphQLEndpointService,
@@ -24,24 +46,211 @@ async fn graphiql() -> impl IntoResponse {
     )
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct VectorLogEvent {
+    pub container_created_at: DateTime<Utc>,
+    pub container_id: String,
+    pub container_name: String,
+    pub host: String,
+    pub image: String,
+    pub label: HashMap<String, String>,
+    pub message: String,
+    pub source_type: String,
+    pub stream: String,
+    pub timestamp: DateTime<Utc>,
+}
+
+async fn read_log_events(
+    vector_log_events: Vec<VectorLogEvent>,
+    allocation_service: Arc<
+        AllocationService<
+            PersistedEventStore<MongoEventRepository, SponsorWallet>,
+            PersistedEventStore<MongoEventRepository, Client>,
+            PersistedEventStore<MongoEventRepository, Group>,
+        >,
+    >,
+) {
+    let prior_balance_regex = regex::Regex::new(
+        r"Total gas coin balance prior to execution: (?P<balance>\d+) reservation_id=",
+    )
+    .unwrap();
+    let executing_transaction_regex =
+        regex::Regex::new(r"Executing transaction:.*?sender: (?P<sender>0x[0-9a-fA-F]+)").unwrap();
+    let after_balance_regex = regex::Regex::new(
+        r"New gas coin balance after execution: (?P<balance>\d+) reservation_id=",
+    )
+    .unwrap();
+    let new_total_balance_regex =
+        regex::Regex::new(r"After add_new_coins. New total balance: (?P<balance>\d+)").unwrap();
+
+    let mut prior = 0;
+    let mut after = 0;
+    let mut wallet_addresss = String::new();
+    let mut new_total_balance = 0;
+
+    for event in vector_log_events {
+        if let Some(captures) = prior_balance_regex.captures(&event.message) {
+            if let Some(balance_match) = captures.name("balance") {
+                match balance_match.as_str().parse::<u64>() {
+                    Ok(balance_prior) => {
+                        println!("Successfully parsed prior balance: {balance_prior}");
+
+                        prior = balance_prior;
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to parse balance from log: {}", e);
+                    }
+                }
+            }
+        } else if let Some(captures) = executing_transaction_regex.captures(&event.message) {
+            if let Some(sender_match) = captures.name("sender") {
+                println!("Successfully parsed sender: {}", sender_match.as_str());
+
+                wallet_addresss = sender_match.as_str().to_string();
+            }
+        } else if let Some(captures) = after_balance_regex.captures(&event.message) {
+            if let Some(balance_match) = captures.name("balance") {
+                match balance_match.as_str().parse::<u64>() {
+                    Ok(balance_after) => {
+                        println!("Successfully parsed new balance: {balance_after}");
+
+                        after = balance_after;
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to parse balance from log: {}", e);
+                    }
+                }
+            }
+        } else if let Some(captures) = new_total_balance_regex.captures(&event.message) {
+            if let Some(balance_match) = captures.name("balance") {
+                match balance_match.as_str().parse::<u64>() {
+                    Ok(new_total_balance_match) => {
+                        println!(
+                            "Successfully parsed new total balance: {new_total_balance_match}"
+                        );
+
+                        new_total_balance = new_total_balance_match;
+
+                        allocation_service
+                            .record_balance_update(
+                                SPONSOR_WALLET_VIEW_ID.to_string(),
+                                new_total_balance,
+                            )
+                            .await
+                            .unwrap();
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to parse new total balance from log: {}", e);
+                    }
+                }
+            }
+        } else {
+            // eprintln!("Could not find JSON in log message: {}", event.message);
+        }
+    }
+
+    if prior > 0 {
+        let transaction_fee = prior - after;
+
+        println!(
+            "Transaction cost for wallet {}: {}",
+            wallet_addresss, transaction_fee
+        );
+
+        allocation_service
+            .record_transaction_fee_paid(wallet_addresss.clone(), transaction_fee)
+            .await
+            .unwrap();
+    }
+
+    // println!("Final before balance: {}", before);
+    // println!("Final after balance: {}", after);
+    // println!("Wallet address: {}", wallet_addresss);
+    // println!("New total balance: {}", new_total_balance);
+}
+
+async fn handle_transaction_webhook(
+    State(allocation_service): State<
+        Arc<
+            AllocationService<
+                PersistedEventStore<MongoEventRepository, SponsorWallet>,
+                PersistedEventStore<MongoEventRepository, Client>,
+                PersistedEventStore<MongoEventRepository, Group>,
+            >,
+        >,
+    >,
+    Json(vector_log_events): Json<Vec<VectorLogEvent>>,
+) {
+    read_log_events(vector_log_events, allocation_service).await;
+}
+
+async fn authorize_transaction_webhook(
+    State(authorize_transaction_service): State<
+        Arc<
+            AuthorizeTransactionService<
+                PersistedEventStore<MongoEventRepository, SponsorWallet>,
+                PersistedEventStore<MongoEventRepository, Client>,
+                PersistedEventStore<MongoEventRepository, Group>,
+            >,
+        >,
+    >,
+    Json(transaction_data): Json<ExecuteTxHookRequest>,
+    // FIXME: proper error handling
+) -> Result<Json<ExecuteTxOkResponse>, String> {
+    match authorize_transaction_service
+        .authorize_transaction(transaction_data)
+        .await
+    {
+        Ok(_) => Ok(Json(ExecuteTxOkResponse {
+            decision: SkippableDecision::Allow,
+            user_message: None,
+        })),
+        Err(e) => {
+            println!("Failed to authorize transaction: {}", e);
+            Err(format!("Failed to authorize transaction: {}", e))
+        }
+    }
+}
+
 async fn app(
     CompositionRoot {
+        allocation_service,
+        authorize_transaction_service,
         balance_management_service,
+        sponsor_wallet_view,
         client_view,
         client_list_view,
         group_view,
         group_list_view,
+        sponsor_wallet_query_receiver,
         client_query_receiver,
         group_query_receiver,
     }: CompositionRoot,
 ) -> Router {
-    let query_root = QueryRoot::new(client_view, client_list_view, group_view, group_list_view);
-    let mutation_root = MutationRoot::new(balance_management_service);
-    let subscription_root = SubscriptionRoot::new(client_query_receiver, group_query_receiver);
+    let query_root = QueryRoot::new(
+        sponsor_wallet_view,
+        client_view,
+        client_list_view,
+        group_view,
+        group_list_view,
+    );
+    let mutation_root = MutationRoot::new(allocation_service.clone(), balance_management_service);
+    let subscription_root = SubscriptionRoot::new(
+        sponsor_wallet_query_receiver,
+        client_query_receiver,
+        group_query_receiver,
+    );
     let schema = Schema::new(query_root, mutation_root, subscription_root);
 
     Router::new()
         .route("/", get(graphiql))
+        .route("/webhook/transaction", post(handle_transaction_webhook))
+        .with_state(allocation_service)
+        .route(
+            "/webhook/authorize-transaction",
+            post(authorize_transaction_webhook),
+        )
+        .with_state(authorize_transaction_service)
         .route_service("/graphql", GraphQLEndpointService::new(schema))
 }
 

@@ -65,11 +65,20 @@ impl Aggregate for Group {
                 group_id: self.group_id.clone(),
                 client_id,
             }]),
-            AllocateBalanceToGroup { group_id, amount } => {
-                Ok(vec![BalanceAllocatedToGroup { group_id, amount }])
+            AllocateFundsToGroup { group_id, amount } => {
+                Ok(vec![FundsAllocatedToGroup { group_id, amount }])
             }
-            WithdrawBalanceFromGroup { group_id, amount } => {
-                Ok(vec![BalanceWithdrawnFromGroup { group_id, amount }])
+            WithdrawFundsFromGroup { group_id, amount } => {
+                Ok(vec![FundsWithdrawnFromGroup { group_id, amount }])
+            }
+            RecordTransactionFeePaid { transaction_fee } => {
+                // TODO: Handle potential underflow
+                let new_balance = self.balance.saturating_sub(transaction_fee);
+
+                Ok(vec![TransactionFeePaidRecorded {
+                    group_id: self.group_id,
+                    new_balance,
+                }])
             }
         }
     }
@@ -103,7 +112,25 @@ impl Aggregate for Group {
             } => {
                 self.members.remove(&client_id);
             }
-            _ => todo!(),
+            FundsAllocatedToGroup {
+                group_id: _,
+                amount,
+            } => {
+                self.balance = self.balance.saturating_add(amount);
+            }
+            FundsWithdrawnFromGroup {
+                group_id: _,
+                amount,
+            } => {
+                self.balance = self.balance.saturating_sub(amount);
+            }
+            TransactionFeePaidRecorded {
+                group_id: _,
+                new_balance,
+            } => {
+                self.balance = new_balance;
+            }
+            _ => unimplemented!(),
         }
     }
 }

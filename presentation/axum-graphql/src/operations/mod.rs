@@ -4,6 +4,7 @@ pub mod subscriptions;
 
 use application::views::client::ClientView;
 use application::views::group::GroupView;
+use application::views::sponsor_wallet::SponsorWalletView;
 use async_graphql::SimpleObject;
 use rand::Rng;
 use std::collections::HashSet;
@@ -11,6 +12,24 @@ use std::sync::Arc;
 use tokio::sync::{RwLock, broadcast};
 use tokio::time::{Duration, Instant};
 use uuid::Uuid;
+
+#[derive(Clone, SimpleObject)]
+pub struct SponsorWalletDto {
+    pub sponsor_wallet_id: String,
+    pub address: String,
+    pub balance: u64,
+}
+
+impl From<SponsorWalletView> for SponsorWalletDto {
+    fn from(view: SponsorWalletView) -> Self {
+        let inner = view.into_inner();
+        Self {
+            sponsor_wallet_id: inner.sponsor_wallet_id,
+            address: inner.address,
+            balance: inner.balance,
+        }
+    }
+}
 
 #[derive(Clone, SimpleObject)]
 pub struct ClientDto {

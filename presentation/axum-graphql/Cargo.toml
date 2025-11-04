@@ -7,6 +7,7 @@ edition = "2024"
 application = { path = "../../application" }
 balance-management = { path = "../../domain/balance-management" }
 composition-root = { path = "../../infrastructure/composition-root" }
+wallet-integration = { path = "../../domain/wallet-integration" }
 
 anyhow = "1.0"
 async-graphql = { version = "7.0", features = ["uuid"] }
@@ -16,9 +17,13 @@ axum = { version = "0.8", features = ["ws"] }
 bytes = "1.10"
 chrono = { version = "0.4", features = ["serde"] }
 futures-util = "0.3"
+iota-gas-station.workspace = true
+iota-json-rpc-types = { git = "https://github.com/iotaledger/iota", tag = "v1.7.0", package = "iota-json-rpc-types" }
 rand = "0.9"
+regex = { version = "1" }
 serde_json = "1.0"
 slab = "0.4"
+serde.workspace = true
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tower-service = "0.3"

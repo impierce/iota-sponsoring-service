@@ -4,6 +4,7 @@ use application::views::{
     client_list::{CLIENT_LIST_VIEW_ID, ClientListView},
     group::GroupView,
     group_list::{GROUP_LIST_VIEW_ID, GroupListView},
+    sponsor_wallet::{SPONSOR_WALLET_VIEW_ID, SponsorWalletView},
 };
 use async_graphql::Object;
 use balance_management::{client::aggregate::Client, group::aggregate::Group};
@@ -11,11 +12,13 @@ use cqrs_es::persist::ViewRepository;
 use mongo_es::MongoViewRepository;
 use std::sync::Arc;
 use uuid::Uuid;
+use wallet_integration::sponsor_wallet::aggregate::SponsorWallet;
 
-use crate::operations::{ClientDto, GroupDto, get_shared_balance};
+use crate::operations::{ClientDto, GroupDto, SponsorWalletDto, get_shared_balance};
 
 #[derive(Clone)]
 pub struct QueryRoot {
+    sponsor_wallet_view: Arc<MongoViewRepository<SponsorWalletView, SponsorWallet>>,
     client_view: Arc<MongoViewRepository<ClientView, Client>>,
     client_list_view: Arc<MongoViewRepository<ClientListView, Client>>,
     group_view: Arc<MongoViewRepository<GroupView, Group>>,
@@ -24,12 +27,14 @@ pub struct QueryRoot {
 
 impl QueryRoot {
     pub fn new(
+        sponsor_wallet_view: Arc<MongoViewRepository<SponsorWalletView, SponsorWallet>>,
         client_view: Arc<MongoViewRepository<ClientView, Client>>,
         client_list_view: Arc<MongoViewRepository<ClientListView, Client>>,
         group_view: Arc<MongoViewRepository<GroupView, Group>>,
         group_list_view: Arc<MongoViewRepository<GroupListView, Group>>,
     ) -> Self {
         Self {
+            sponsor_wallet_view,
             client_view,
             client_list_view,
             group_view,
@@ -44,6 +49,15 @@ impl QueryRoot {
     async fn token_balance(&self) -> i32 {
         let balance = get_shared_balance().read().await;
         balance.value
+    }
+
+    /// Returns the sponsor wallet
+    async fn get_sponsor_wallet(&self) -> Result<Option<SponsorWalletDto>> {
+        Ok(self
+            .sponsor_wallet_view
+            .load(SPONSOR_WALLET_VIEW_ID)
+            .await?
+            .map(SponsorWalletDto::from))
     }
 
     /// Returns a client by ID

@@ -19,10 +19,59 @@ services:
     environment:
       - SERVER_ADDRESS=0.0.0.0:8000
       - MONGODB_URI=mongodb://mongodb:27017/iota-sponsoring-service?directConnection=true&retryWrites=false&replicaSet=rs0
+      - GAS_STATION_CONFIG_PATH=/app/gas-station.config.yaml
+      - GIT_REVISION=${GIT_REVISION:-unknown}
     ports:
       - "8000:8000"
     restart: unless-stopped
+    volumes:
+      - ${LOCAL_CONFIG_PATH:-./gas-station.config.yaml}:/app/gas-station.config.yaml
+
+  redis:
+    image: redis:latest
+    container_name: gas-station-redis
+    volumes:
+      - redis_data:/data
+
+  iota-gas-station:
+    image: "${DOCKER_IMAGE:-iotaledger/gas-station:latest}"
+    # build:
+    #   context: ..
+    #   args:
+    #     - BUILD_DATE=${BUILD_DATE:-latest}
+    #     - GIT_REVISION=${GIT_REVISION:-latest}
+    #   dockerfile: docker/Dockerfile
+    container_name: iota-gas-station
+    command: ["--config-path", "/app/config.yaml"]
+    depends_on:
+      - redis
+    ports:
+      - "9527:9527" # RPC port
+      - "9184:9184" # Metrics port
+    environment:
+      - CONFIG_PATH=/app/config.yaml
+      - RUST_BACKTRACE=1
+      - GAS_STATION_AUTH=${GAS_STATION_AUTH:-}
+      - TRANSACTIONS_LOGGING=true
+    volumes:
+      - ${LOCAL_CONFIG_PATH:-./gas-station.config.yaml}:/app/config.yaml
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
+
+  vector:
+    image: timberio/vector:latest-alpine
+    container_name: vector
+    volumes:
+      - ./vector/vector.toml:/etc/vector/vector.toml:ro
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+    command: ["--config", "/etc/vector/vector.toml"]
+    restart: unless-stopped
+    depends_on:
+      - iota-sponsoring-service
+    # extra_hosts:
+    #   - "host.docker.internal:host-gateway"
 
 volumes:
   mongodb_data:
   mongodb_config:
+  redis_data:

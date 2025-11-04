@@ -26,3 +26,6 @@ target
 /target
 
 .env
+
+# Ignore gas station config file because it may contain secrets
+gas-station.config.yaml

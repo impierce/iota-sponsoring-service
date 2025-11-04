@@ -20,8 +20,8 @@ where
     CES: EventStore<Client>,
     GES: EventStore<Group>,
 {
-    client_handler: CqrsFramework<Client, CES>,
-    group_handler: CqrsFramework<Group, GES>,
+    client_handler: Arc<CqrsFramework<Client, CES>>,
+    group_handler: Arc<CqrsFramework<Group, GES>>,
     client_view: Arc<dyn ViewRepository<ClientView, Client>>,
     client_list_view: Arc<dyn ViewRepository<ClientListView, Client>>,
     group_view: Arc<dyn ViewRepository<GroupView, Group>>,
@@ -34,8 +34,8 @@ where
     GES: EventStore<Group> + 'static,
 {
     pub fn new(
-        client_handler: CqrsFramework<Client, CES>,
-        group_handler: CqrsFramework<Group, GES>,
+        client_handler: Arc<CqrsFramework<Client, CES>>,
+        group_handler: Arc<CqrsFramework<Group, GES>>,
         client_view: Arc<dyn ViewRepository<ClientView, Client>>,
         client_list_view: Arc<dyn ViewRepository<ClientListView, Client>>,
         group_view: Arc<dyn ViewRepository<GroupView, Group>>,

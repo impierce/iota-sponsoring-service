@@ -1,16 +1,31 @@
 use anyhow::Result;
-use application::services::balance_management_service::BalanceManagementService;
+use application::{
+    services::{
+        allocation_service::AllocationService,
+        authorize_transaction_service::{self, AuthorizeTransactionService},
+        balance_management_service::BalanceManagementService,
+    },
+    views::sponsor_wallet::SPONSOR_WALLET_VIEW_ID,
+};
 use async_graphql::Object;
 use balance_management::{client::aggregate::Client, group::aggregate::Group};
 use cqrs_es::persist::PersistedEventStore;
 use mongo_es::MongoEventRepository;
 use std::sync::Arc;
 use uuid::Uuid;
+use wallet_integration::sponsor_wallet::aggregate::SponsorWallet;
 
 use crate::operations::{ClientDto, GroupDto};
 
 #[derive(Clone)]
 pub struct MutationRoot {
+    allocation_service: Arc<
+        AllocationService<
+            PersistedEventStore<MongoEventRepository, SponsorWallet>,
+            PersistedEventStore<MongoEventRepository, Client>,
+            PersistedEventStore<MongoEventRepository, Group>,
+        >,
+    >,
     balance_management_service: Arc<
         BalanceManagementService<
             PersistedEventStore<MongoEventRepository, Client>,
@@ -21,6 +36,13 @@ pub struct MutationRoot {
 
 impl MutationRoot {
     pub fn new(
+        allocation_service: Arc<
+            AllocationService<
+                PersistedEventStore<MongoEventRepository, SponsorWallet>,
+                PersistedEventStore<MongoEventRepository, Client>,
+                PersistedEventStore<MongoEventRepository, Group>,
+            >,
+        >,
         balance_management_service: Arc<
             BalanceManagementService<
                 PersistedEventStore<MongoEventRepository, Client>,
@@ -29,6 +51,7 @@ impl MutationRoot {
         >,
     ) -> Self {
         Self {
+            allocation_service,
             balance_management_service,
         }
     }
@@ -37,7 +60,8 @@ impl MutationRoot {
 #[Object]
 impl MutationRoot {
     /// Creates a new group
-    async fn create_group(&self, group_id: Uuid, name: String) -> Result<GroupDto> {
+    async fn create_group(&self, name: String) -> Result<GroupDto> {
+        let group_id = Uuid::new_v4();
         self.balance_management_service
             .create_group(group_id, name)
             .await
@@ -66,12 +90,9 @@ impl MutationRoot {
     }
 
     /// Registers a new client
-    async fn register_client(
-        &self,
-        client_id: Uuid,
-        name: String,
-        wallet_address: String,
-    ) -> Result<ClientDto> {
+    async fn register_client(&self, name: String, wallet_address: String) -> Result<ClientDto> {
+        let client_id = Uuid::new_v4();
+
         self.balance_management_service
             .register_client(client_id, name, wallet_address)
             .await
@@ -83,5 +104,21 @@ impl MutationRoot {
         self.balance_management_service
             .remove_client(client_id)
             .await
+    }
+
+    /// Allocates funds to a group
+    async fn allocate_funds_to_group(&self, group_id: Uuid, amount: u64) -> Result<GroupDto> {
+        self.allocation_service
+            .allocate_funds_to_group(SPONSOR_WALLET_VIEW_ID.to_string(), group_id, amount)
+            .await
+            .map(GroupDto::from)
+    }
+
+    /// Withdraws funds from a group
+    async fn withdraw_funds_from_group(&self, group_id: Uuid, amount: u64) -> Result<GroupDto> {
+        self.allocation_service
+            .withdraw_funds_from_group(group_id, amount)
+            .await
+            .map(GroupDto::from)
     }
 }

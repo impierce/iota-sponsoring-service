@@ -1,0 +1,3 @@
+[submodule "submodules/gas-station"]
+	path = submodules/gas-station
+	url = https://github.com/iotaledger/gas-station.git

@@ -14,8 +14,19 @@ pub enum GroupCommand {
     RemoveClientFromGroup { client_id: Uuid },
 
     /// Command to allocate a shared balance to a group.
-    AllocateBalanceToGroup { group_id: Uuid, amount: u64 },
+    AllocateFundsToGroup {
+        // TODO: remove `group_id` from here, as it's already part of the aggregate state
+        group_id: Uuid,
+        amount: u64,
+    },
 
     /// Command to withdraw from a group's shared balance.
-    WithdrawBalanceFromGroup { group_id: Uuid, amount: u64 },
+    WithdrawFundsFromGroup {
+        // TODO: remove `group_id` from here, as it's already part of the aggregate state
+        group_id: Uuid,
+        amount: u64,
+    },
+
+    /// Command to record a transaction fee paid by the group.
+    RecordTransactionFeePaid { transaction_fee: u64 },
 }

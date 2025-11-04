@@ -20,11 +20,11 @@ pub enum GroupEvent {
         group_id: Uuid,
         client_id: Uuid,
     },
-    BalanceAllocatedToGroup {
+    FundsAllocatedToGroup {
         group_id: Uuid,
         amount: u64,
     },
-    BalanceWithdrawnFromGroup {
+    FundsWithdrawnFromGroup {
         group_id: Uuid,
         amount: u64,
     },
@@ -32,6 +32,10 @@ pub enum GroupEvent {
         group_id: Uuid,
         by_client_id: String,
         fee_paid: u64,
+    },
+    TransactionFeePaidRecorded {
+        group_id: Uuid,
+        new_balance: u64,
     },
 }
 

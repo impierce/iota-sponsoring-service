@@ -17,6 +17,7 @@ members = [
 
     # Domain libraries
     "domain/balance-management",
+    "domain/wallet-integration",
 
     # Infrastructure libraries
     "infrastructure/composition-root",
@@ -24,11 +25,13 @@ members = [
     # Presentation libraries
     "presentation/axum-graphql",
 ]
+exclude = ["submodules/gas-station"]
 
 [workspace.dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
 cqrs-es = "0.4"
+iota-gas-station = { path = "submodules/gas-station" }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 strum = { version = "0.27", features = ["derive"] }

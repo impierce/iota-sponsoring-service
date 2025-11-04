@@ -12,9 +12,13 @@ async fn main() {
     let mongo_uri = env::var("MONGODB_URI")
         .unwrap_or_else(|_| "mongodb://localhost:27017/ssi-agent?directConnection=true&retryWrites=false&replicaSet=rs0".to_string());
 
+    // Read Gas Station config path from environment variable with fallback
+    let gas_station_config_path = env::var("GAS_STATION_CONFIG_PATH")
+        .unwrap_or_else(|_| "./gas-station.config.yaml".to_string());
+
     println!("Starting server on: {}", addr);
 
-    let composition_root = CompositionRoot::new(mongo_uri).await;
+    let composition_root = CompositionRoot::new(mongo_uri, gas_station_config_path).await;
 
     axum_graphql::run(&addr, composition_root).await;
 }
