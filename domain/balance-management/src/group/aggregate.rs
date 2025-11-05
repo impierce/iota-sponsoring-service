@@ -3,6 +3,7 @@ use std::collections::HashSet;
 use async_trait::async_trait;
 use cqrs_es::Aggregate;
 use serde::{Deserialize, Serialize};
+use tracing::{debug, instrument, trace};
 use uuid::Uuid;
 
 use super::{
@@ -36,6 +37,7 @@ impl Aggregate for Group {
         "group".to_string()
     }
 
+    #[instrument(name = "Group::handle", skip(self, _service), fields(command = ?command))]
     async fn handle(
         &self,
         command: Self::Command,
@@ -44,14 +46,25 @@ impl Aggregate for Group {
         use GroupCommand::*;
         use GroupError::*;
 
+        debug!("Handling command");
+
         // --- Validation before processing the command ---
         let has_been_created = !self.group_id.is_nil();
 
         match command {
-            CreateGroup { group_id, name } => Ok(vec![GroupCreated { group_id, name }]),
+            CreateGroup { group_id, name } => {
+                if has_been_created {
+                    debug!("Validation failed: Group already exists");
+                    return Err(GroupAlreadyExists);
+                }
+                Ok(vec![GroupCreated { group_id, name }])
+            }
 
-            // For all other commands, the deck must exist first.
-            _ if !has_been_created => Err(GroupNotFound),
+            // For all other commands, the group must exist first.
+            _ if !has_been_created => {
+                debug!("Validation failed: Group not found");
+                Err(GroupNotFound)
+            }
 
             DeleteGroup { group_id } => Ok(vec![GroupDeleted {
                 group_id,
@@ -69,11 +82,18 @@ impl Aggregate for Group {
                 Ok(vec![FundsAllocatedToGroup { group_id, amount }])
             }
             WithdrawFundsFromGroup { group_id, amount } => {
+                if self.balance < amount {
+                    debug!("Validation failed: Insufficient balance for withdrawal");
+                    return Err(InsufficientBalance);
+                }
                 Ok(vec![FundsWithdrawnFromGroup { group_id, amount }])
             }
             RecordTransactionFeePaid { transaction_fee } => {
-                // TODO: Handle potential underflow
-                let new_balance = self.balance.saturating_sub(transaction_fee);
+                if self.balance < transaction_fee {
+                    debug!("Validation failed: Insufficient balance to pay transaction fee");
+                    return Err(InsufficientBalance);
+                }
+                let new_balance = self.balance - transaction_fee;
 
                 Ok(vec![TransactionFeePaidRecorded {
                     group_id: self.group_id,
@@ -83,7 +103,9 @@ impl Aggregate for Group {
         }
     }
 
+    #[instrument(name = "Group::apply", skip(self), fields(event = ?event))]
     fn apply(&mut self, event: Self::Event) {
+        trace!("Applying event");
         use GroupEvent::*;
 
         match event {

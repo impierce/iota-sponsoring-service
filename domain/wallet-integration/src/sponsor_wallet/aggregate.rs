@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use cqrs_es::Aggregate;
 use serde::{Deserialize, Serialize};
+use tracing::{debug, instrument, trace};
 
 use super::{
     command::SponsorWalletCommand,
@@ -27,6 +28,7 @@ impl Aggregate for SponsorWallet {
         "sponsor_wallet".to_string()
     }
 
+    #[instrument(name = "SponsorWallet::handle", skip(self, _service), fields(command = ?command))]
     async fn handle(
         &self,
         command: Self::Command,
@@ -34,6 +36,8 @@ impl Aggregate for SponsorWallet {
     ) -> Result<Vec<Self::Event>, Self::Error> {
         use SponsorWalletCommand::*;
         use SponsorWalletError::*;
+
+        debug!("Handling command");
 
         // --- Validation before processing the command ---
         let has_been_created = !self.sponsor_wallet_id.is_empty();
@@ -43,38 +47,34 @@ impl Aggregate for SponsorWallet {
                 sponsor_wallet_id,
                 address,
                 balance,
-            } => Ok(vec![SponsorWalletCreated {
-                sponsor_wallet_id,
-                address,
-                balance,
-            }]),
-
-            // For all other commands, the wallet must exist first.
-            _ if !has_been_created => Err(SponsorWalletNotFound),
-
-            RecordBalanceUpdate { new_balance } => {
-                println!("Recording balance update to {}", new_balance);
-
-                Ok(vec![BalanceUpdateRecorded { new_balance }])
+            } => {
+                if has_been_created {
+                    debug!("Validation failed: Sponsor wallet already exists");
+                    return Err(SponsorWalletAlreadyExists);
+                }
+                Ok(vec![SponsorWalletCreated {
+                    sponsor_wallet_id,
+                    address,
+                    balance,
+                }])
             }
 
-            // TODO: remove this command
-            RecordTransactionFeePaid {
-                sender_address,
-                transaction_fee,
-            } => {
-                // TODO: Handle potential underflow
-                let new_balance = self.balance.saturating_sub(transaction_fee);
+            // For all other commands, the wallet must exist first.
+            _ if !has_been_created => {
+                debug!("Validation failed: Sponsor wallet not found");
+                Err(SponsorWalletNotFound)
+            }
 
-                Ok(vec![TransactionFeePaidRecorded {
-                    sender_address,
-                    new_balance,
-                }])
+            RecordBalanceUpdate { new_balance } => {
+                debug!("Recording balance update to {}", new_balance);
+                Ok(vec![BalanceUpdateRecorded { new_balance }])
             }
         }
     }
 
+    #[instrument(name = "SponsorWallet::apply", skip(self), fields(event = ?event))]
     fn apply(&mut self, event: Self::Event) {
+        trace!("Applying event");
         use SponsorWalletEvent::*;
 
         match event {

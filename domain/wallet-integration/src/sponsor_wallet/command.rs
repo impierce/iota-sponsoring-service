@@ -1,3 +1,4 @@
+#[derive(Debug)]
 pub enum SponsorWalletCommand {
     CreateSponsorWallet {
         sponsor_wallet_id: String,
@@ -6,9 +7,5 @@ pub enum SponsorWalletCommand {
     },
     RecordBalanceUpdate {
         new_balance: u64,
-    },
-    RecordTransactionFeePaid {
-        sender_address: String,
-        transaction_fee: u64,
     },
 }

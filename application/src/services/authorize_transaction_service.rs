@@ -1,24 +1,19 @@
 use std::sync::Arc;
 
 use anyhow::{Context as _, Result, anyhow};
-use balance_management::{
-    client::{aggregate::Client, command::ClientCommand},
-    group::{aggregate::Group, command::GroupCommand},
-};
+use balance_management::{client::aggregate::Client, group::aggregate::Group};
 use base64::prelude::*;
 use cqrs_es::{CqrsFramework, EventStore, persist::ViewRepository};
 use iota_gas_station::access_controller::hook::ExecuteTxHookRequest;
 use iota_types::transaction::{TransactionData, TransactionDataAPI};
-use uuid::Uuid;
-use wallet_integration::sponsor_wallet::{
-    self, aggregate::SponsorWallet, command::SponsorWalletCommand,
-};
+use tracing::{debug, error, info, instrument, warn};
+use wallet_integration::sponsor_wallet::aggregate::SponsorWallet;
 
 use crate::views::{
     client::ClientView,
     client_list::{CLIENT_LIST_VIEW_ID, ClientListView},
     group::GroupView,
-    group_list::{self, GROUP_LIST_VIEW_ID, GroupListView},
+    group_list::GroupListView,
     sponsor_wallet::SponsorWalletView,
 };
 pub struct AuthorizeTransactionService<SWES, CES, GES>
@@ -27,14 +22,14 @@ where
     CES: EventStore<Client>,
     GES: EventStore<Group>,
 {
-    sponsor_wallet_handler: Arc<CqrsFramework<SponsorWallet, SWES>>,
-    client_handler: Arc<CqrsFramework<Client, CES>>,
-    group_handler: Arc<CqrsFramework<Group, GES>>,
-    sponsor_wallet_view: Arc<dyn ViewRepository<SponsorWalletView, SponsorWallet>>,
-    client_view: Arc<dyn ViewRepository<ClientView, Client>>,
+    _sponsor_wallet_handler: Arc<CqrsFramework<SponsorWallet, SWES>>,
+    _client_handler: Arc<CqrsFramework<Client, CES>>,
+    _group_handler: Arc<CqrsFramework<Group, GES>>,
+    _sponsor_wallet_view: Arc<dyn ViewRepository<SponsorWalletView, SponsorWallet>>,
+    _client_view: Arc<dyn ViewRepository<ClientView, Client>>,
     client_list_view: Arc<dyn ViewRepository<ClientListView, Client>>,
     group_view: Arc<dyn ViewRepository<GroupView, Group>>,
-    group_list_view: Arc<dyn ViewRepository<GroupListView, Group>>,
+    _group_list_view: Arc<dyn ViewRepository<GroupListView, Group>>,
 }
 
 impl<SWES, CES, GES> AuthorizeTransactionService<SWES, CES, GES>
@@ -44,95 +39,96 @@ where
     GES: EventStore<Group> + 'static,
 {
     pub fn new(
-        sponsor_wallet_handler: Arc<CqrsFramework<SponsorWallet, SWES>>,
-        client_handler: Arc<CqrsFramework<Client, CES>>,
-        group_handler: Arc<CqrsFramework<Group, GES>>,
-        sponsor_wallet_view: Arc<dyn ViewRepository<SponsorWalletView, SponsorWallet>>,
-        client_view: Arc<dyn ViewRepository<ClientView, Client>>,
+        _sponsor_wallet_handler: Arc<CqrsFramework<SponsorWallet, SWES>>,
+        _client_handler: Arc<CqrsFramework<Client, CES>>,
+        _group_handler: Arc<CqrsFramework<Group, GES>>,
+        _sponsor_wallet_view: Arc<dyn ViewRepository<SponsorWalletView, SponsorWallet>>,
+        _client_view: Arc<dyn ViewRepository<ClientView, Client>>,
         client_list_view: Arc<dyn ViewRepository<ClientListView, Client>>,
         group_view: Arc<dyn ViewRepository<GroupView, Group>>,
-        group_list_view: Arc<dyn ViewRepository<GroupListView, Group>>,
+        _group_list_view: Arc<dyn ViewRepository<GroupListView, Group>>,
     ) -> Self {
         Self {
-            sponsor_wallet_handler,
-            client_handler,
-            group_handler,
-            sponsor_wallet_view,
-            client_view,
+            _sponsor_wallet_handler,
+            _client_handler,
+            _group_handler,
+            _sponsor_wallet_view,
+            _client_view,
             client_list_view,
             group_view,
-            group_list_view,
+            _group_list_view,
         }
     }
 
+    #[instrument(skip(self, transaction_data), fields(reservation_id = %transaction_data.execute_tx_request.payload.reservation_id))]
     pub async fn authorize_transaction(
         &self,
         transaction_data: ExecuteTxHookRequest,
     ) -> Result<()> {
-        let transaction_data: TransactionData = BASE64_STANDARD
+        info!("Authorizing transaction");
+
+        let tx_data: TransactionData = BASE64_STANDARD
             .decode(&transaction_data.execute_tx_request.payload.tx_bytes)
-            .context("failed to decode base64 string with transaction data")
+            .context("Failed to decode base64 transaction data")
             .and_then(|bytes| {
-                bcs::from_bytes(&bytes).context("failed to parse BCS bytes to `TransactionData`")
-            })
-            .expect("FIXME: handle error properly");
+                bcs::from_bytes(&bytes).context("Failed to parse BCS bytes to `TransactionData`")
+            })?;
 
-        let sender_address = transaction_data.sender().to_string();
-        let kind = transaction_data.kind();
-        let gas_owner = transaction_data.gas_owner().to_string();
-        let gas = transaction_data.gas();
-        let gas_price = transaction_data.gas_price();
-        let gas_budget = transaction_data.gas_budget();
-        let is_system_tx = transaction_data.is_system_tx();
-        let is_genesis_tx = transaction_data.is_genesis_tx();
-        let is_end_of_epoch_tx = transaction_data.is_end_of_epoch_tx();
-        let is_sponsored_tx = transaction_data.is_sponsored_tx();
+        let sender_address = tx_data.sender().to_string();
+        let gas_budget = tx_data.gas_budget();
 
-        println!("Authorizing transaction with the following details:");
-        println!("Sender Address: {}", sender_address);
-        println!("Kind: {:?}", kind);
-        println!("Gas Owner: {}", gas_owner);
-        // println!("Gas: {:#?}", gas);
-        println!("Gas Price: {}", gas_price);
-        println!("Gas Budget: {}", gas_budget);
-        println!("Is System Tx: {}", is_system_tx);
-        println!("Is Genesis Tx: {}", is_genesis_tx);
-        println!("Is End Of Epoch Tx: {}", is_end_of_epoch_tx);
-        println!("Is Sponsored Tx: {}", is_sponsored_tx);
+        debug!(
+            sender_address = %sender_address,
+            gas_owner = %tx_data.gas_owner(),
+            gas_budget = %gas_budget,
+            gas_price = %tx_data.gas_price(),
+            is_sponsored = %tx_data.is_sponsored_tx(),
+            "Parsed transaction details"
+        );
 
+        debug!("Loading client list view to find client by sender address");
         let client_list_view = self
             .client_list_view
             .load(CLIENT_LIST_VIEW_ID)
             .await?
             .ok_or_else(|| anyhow!("Client list view not found"))?;
 
-        println!("Sender address: {}", sender_address);
-
         let client_view = client_list_view
             .into_inner()
             .into_values()
             .find(|client_view| client_view.wallet_address == sender_address)
-            .expect("FIXME: handle error properly");
+            .ok_or_else(|| anyhow!("Client not found for sender address `{}`", sender_address))?;
+
+        debug!(client_id = %client_view.client_id, "Found client for sender address");
 
         if let Some(group_id) = client_view.group_id {
+            debug!(group_id = %group_id, "Client belongs to a group, checking group balance");
             let group_view = self
                 .group_view
                 .load(&group_id.to_string())
                 .await?
                 .ok_or_else(|| anyhow!("Group view not found for id `{}`", group_id))?;
 
-            if group_view.balance < gas_budget {
-                return Err(anyhow!(
+            if group_view.balance >= gas_budget {
+                info!(
+                    group_balance = group_view.balance,
+                    "Sufficient balance. Authorizing transaction."
+                );
+                Ok(())
+            } else {
+                let err_msg = format!(
                     "Insufficient balance in group `{}` for transaction. Available: {}, Required: {}",
-                    group_id,
-                    group_view.balance,
-                    gas_budget
-                ));
+                    group_id, group_view.balance, gas_budget
+                );
+                error!("{}", err_msg);
+                Err(anyhow!(err_msg))
             }
         } else {
-            unimplemented!("Handle clients without a group");
+            warn!(client_id = %client_view.client_id, "Transaction denied: Client does not belong to a group");
+            Err(anyhow!(
+                "Client `{}` is not assigned to a group",
+                client_view.client_id
+            ))
         }
-
-        Ok(())
     }
 }

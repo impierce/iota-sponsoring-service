@@ -1,5 +1,6 @@
 use uuid::Uuid;
 
+#[derive(Debug)]
 pub enum GroupCommand {
     /// Command to create a new group.
     CreateGroup { group_id: Uuid, name: String },

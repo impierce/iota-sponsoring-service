@@ -27,6 +27,7 @@ serde.workspace = true
 tokio = { version = "1.48", features = ["macros", "rt-multi-thread"] }
 tokio-stream = { version = "0.1", features = ["sync"] }
 tower-service = "0.3"
+tracing.workspace = true
 uuid.workspace = true
 
 cqrs-es.workspace = true

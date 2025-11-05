@@ -1,5 +1,6 @@
 use uuid::Uuid;
 
+#[derive(Debug)]
 pub enum ClientCommand {
     /// Command to register a new client in the system.
     RegisterClient {

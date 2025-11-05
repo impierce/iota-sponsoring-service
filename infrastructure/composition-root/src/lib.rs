@@ -4,7 +4,7 @@ use application::{
     queries::{generic_query_with_sender::GenericQueryWithSender, list_all_query::ListAllQuery},
     services::{
         allocation_service::AllocationService,
-        authorize_transaction_service::{self, AuthorizeTransactionService},
+        authorize_transaction_service::AuthorizeTransactionService,
         balance_management_service::BalanceManagementService,
     },
     views::{
@@ -19,10 +19,10 @@ use balance_management::{client::aggregate::Client, group::aggregate::Group};
 use cqrs_es::persist::PersistedEventStore;
 use cqrs_es::persist::ViewRepository;
 use iota_config::Config;
-use iota_gas_station::storage::connect_storage;
-use iota_gas_station::{config::GasStationConfig, metrics::StorageMetrics};
+use iota_gas_station::config::GasStationConfig;
 use mongo_es::{MongoCqrs, MongoEventRepository, MongoViewRepository, default_mongo_client};
 use tokio::sync::broadcast;
+use tracing::{info, instrument};
 use wallet_integration::sponsor_wallet::{aggregate::SponsorWallet, command::SponsorWalletCommand};
 
 pub struct CompositionRoot {
@@ -58,14 +58,18 @@ pub struct CompositionRoot {
     pub group_query_receiver: Arc<broadcast::Receiver<GroupView>>,
 }
 
-async fn initialize_sponsor_wallet() -> Result<(), Box<dyn std::error::Error>> {
-    Ok(())
-}
-
 impl CompositionRoot {
+    #[instrument(
+        name = "CompositionRoot::new",
+        skip(mongo_uri, gas_station_config_path)
+    )]
     pub async fn new(mongo_uri: String, gas_station_config_path: String) -> Self {
+        info!("Initializing application composition root");
+
         let client = default_mongo_client(&mongo_uri).await;
 
+        // --- Sponsor Wallet Setup ---
+        info!("Setting up `SponsorWallet` CQRS components");
         let sponsor_wallet_view =
             Arc::new(MongoViewRepository::new("sponsor_wallet", client.clone()));
         let sponsor_wallet_event_repository =
@@ -82,6 +86,7 @@ impl CompositionRoot {
             (),
         ));
 
+        info!("Loading gas station configuration");
         let GasStationConfig {
             signer_config,
             // storage_config: gas_station_config,
@@ -97,7 +102,7 @@ impl CompositionRoot {
             let signer = signer_config.new_signer().await;
             let sponsor_address = signer.get_address();
 
-            println!("Creating sponsor wallet view with address: {sponsor_address}");
+            info!(address = %sponsor_address, "Sponsor wallet not found, creating a new one");
 
             let command = SponsorWalletCommand::CreateSponsorWallet {
                 sponsor_wallet_id: SPONSOR_WALLET_VIEW_ID.to_string(),
@@ -110,9 +115,11 @@ impl CompositionRoot {
                 .await
                 .unwrap();
         } else {
-            println!("Sponsor wallet view already exists");
+            info!("Sponsor wallet already exists, skipping creation");
         }
 
+        // --- Client Setup ---
+        info!("Setting up `Client` CQRS components");
         let client_view = Arc::new(MongoViewRepository::new("client", client.clone()));
         let client_list_view: Arc<MongoViewRepository<ClientListView, Client>> = Arc::new(
             MongoViewRepository::new(CLIENT_LIST_VIEW_ID, client.clone()),
@@ -129,6 +136,8 @@ impl CompositionRoot {
             (),
         ));
 
+        // --- Group Setup ---
+        info!("Setting up `Group` CQRS components");
         let group_view: Arc<MongoViewRepository<GroupView, Group>> =
             Arc::new(MongoViewRepository::new("group", client.clone()));
         let group_list_view: Arc<MongoViewRepository<GroupListView, Group>> =
@@ -145,6 +154,8 @@ impl CompositionRoot {
             (),
         ));
 
+        // --- Service Initialization ---
+        info!("Initializing application services");
         let allocation_service = Arc::new(AllocationService::new(
             sponsor_wallet_handler.clone(),
             client_handler.clone(),
@@ -176,6 +187,7 @@ impl CompositionRoot {
             group_list_view.clone(),
         ));
 
+        info!("Composition root initialization complete");
         Self {
             allocation_service,
             authorize_transaction_service,

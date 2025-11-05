@@ -268,6 +268,7 @@ dependencies = [
  "strum 0.27.2",
  "thiserror 2.0.17",
  "tokio",
+ "tracing",
  "uuid",
  "wallet-integration",
 ]
@@ -992,6 +993,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tower-service",
+ "tracing",
  "uuid",
  "wallet-integration",
 ]
@@ -1033,6 +1035,7 @@ dependencies = [
  "strum 0.27.2",
  "thiserror 2.0.17",
  "tokio",
+ "tracing",
  "uuid",
 ]
 
@@ -1711,6 +1714,7 @@ dependencies = [
  "tokio",
  "tokio-stream",
  "tower-service",
+ "tracing",
  "wallet-integration",
 ]
 
@@ -4677,6 +4681,8 @@ dependencies = [
  "composition-root",
  "dotenvy",
  "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -9734,6 +9740,7 @@ dependencies = [
  "time",
  "tracing",
  "tracing-core",
+ "tracing-log",
  "tracing-serde",
 ]
 
@@ -10082,6 +10089,7 @@ dependencies = [
  "strum 0.27.2",
  "thiserror 2.0.17",
  "tokio",
+ "tracing",
  "uuid",
 ]
 

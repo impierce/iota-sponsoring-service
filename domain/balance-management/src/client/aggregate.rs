@@ -1,6 +1,7 @@
 use async_trait::async_trait;
 use cqrs_es::Aggregate;
 use serde::{Deserialize, Serialize};
+use tracing::{debug, instrument, trace};
 use uuid::Uuid;
 
 use super::{
@@ -38,6 +39,7 @@ impl Aggregate for Client {
         "client".to_string()
     }
 
+    #[instrument(name = "Client::handle", skip(self, _service), fields(command = ?command))]
     async fn handle(
         &self,
         command: Self::Command,
@@ -45,6 +47,8 @@ impl Aggregate for Client {
     ) -> Result<Vec<Self::Event>, Self::Error> {
         use ClientCommand::*;
         use ClientError::*;
+
+        debug!("Handling command");
 
         // --- Validation before processing the command ---
         let has_been_created = !self.client_id.is_nil();
@@ -54,14 +58,23 @@ impl Aggregate for Client {
                 client_id,
                 name,
                 wallet_address,
-            } => Ok(vec![ClientRegistered {
-                client_id,
-                name,
-                wallet_address,
-            }]),
+            } => {
+                if has_been_created {
+                    debug!("Validation failed: Client already exists");
+                    return Err(ClientAlreadyExists);
+                }
+                Ok(vec![ClientRegistered {
+                    client_id,
+                    name,
+                    wallet_address,
+                }])
+            }
 
-            // For all other commands, the deck must exist first.
-            _ if !has_been_created => Err(ClientNotFound),
+            // For all other commands, the client must exist first.
+            _ if !has_been_created => {
+                debug!("Validation failed: Client not found");
+                Err(ClientNotFound)
+            }
 
             RemoveClient { client_id } => Ok(vec![ClientRemoved {
                 client_id,
@@ -80,14 +93,22 @@ impl Aggregate for Client {
                 client_id: self.client_id.clone(),
                 amount,
             }]),
-            WithdrawBalanceFromClient { amount } => Ok(vec![BalanceWithdrawnFromClient {
-                client_id: self.client_id.clone(),
-                amount,
-            }]),
+            WithdrawBalanceFromClient { amount } => {
+                if self.balance.unwrap_or(0) < amount {
+                    debug!("Validation failed: Insufficient balance for withdrawal");
+                    return Err(InsufficientBalance);
+                }
+                Ok(vec![BalanceWithdrawnFromClient {
+                    client_id: self.client_id,
+                    amount,
+                }])
+            }
         }
     }
 
+    #[instrument(name = "Client::apply", skip(self), fields(event = ?event))]
     fn apply(&mut self, event: Self::Event) {
+        trace!("Applying event");
         use ClientEvent::*;
 
         match event {

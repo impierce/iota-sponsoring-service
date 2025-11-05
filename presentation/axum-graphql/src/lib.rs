@@ -46,22 +46,27 @@ async fn graphiql() -> impl IntoResponse {
     )
 }
 
+// #[derive(Debug, Serialize, Deserialize)]
+// pub struct VectorLogEvent {
+//     pub container_created_at: DateTime<Utc>,
+//     pub container_id: String,
+//     pub container_name: String,
+//     pub host: String,
+//     pub image: String,
+//     pub label: HashMap<String, String>,
+//     pub message: String,
+//     pub source_type: String,
+//     pub stream: String,
+//     pub timestamp: DateTime<Utc>,
+// }
+
 #[derive(Debug, Serialize, Deserialize)]
-pub struct VectorLogEvent {
-    pub container_created_at: DateTime<Utc>,
-    pub container_id: String,
-    pub container_name: String,
-    pub host: String,
-    pub image: String,
-    pub label: HashMap<String, String>,
+struct Event {
     pub message: String,
-    pub source_type: String,
-    pub stream: String,
-    pub timestamp: DateTime<Utc>,
 }
 
 async fn read_log_events(
-    vector_log_events: Vec<VectorLogEvent>,
+    events: Vec<Event>,
     allocation_service: Arc<
         AllocationService<
             PersistedEventStore<MongoEventRepository, SponsorWallet>,
@@ -88,7 +93,7 @@ async fn read_log_events(
     let mut wallet_addresss = String::new();
     let mut new_total_balance = 0;
 
-    for event in vector_log_events {
+    for event in events {
         if let Some(captures) = prior_balance_regex.captures(&event.message) {
             if let Some(balance_match) = captures.name("balance") {
                 match balance_match.as_str().parse::<u64>() {
@@ -179,9 +184,9 @@ async fn handle_transaction_webhook(
             >,
         >,
     >,
-    Json(vector_log_events): Json<Vec<VectorLogEvent>>,
+    Json(events): Json<Vec<Event>>,
 ) {
-    read_log_events(vector_log_events, allocation_service).await;
+    read_log_events(events, allocation_service).await;
 }
 
 async fn authorize_transaction_webhook(

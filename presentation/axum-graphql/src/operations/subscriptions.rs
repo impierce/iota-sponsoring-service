@@ -5,6 +5,7 @@ use async_graphql::Subscription;
 use futures_util::{Stream, StreamExt};
 use std::sync::Arc;
 use tokio::sync::broadcast;
+use tracing::instrument;
 
 #[derive(Clone)]
 pub struct SubscriptionRoot {
@@ -30,6 +31,7 @@ impl SubscriptionRoot {
 #[Subscription]
 impl SubscriptionRoot {
     /// Subscribe to token balance updates
+    #[instrument(skip(self))]
     async fn token_balance_updates(&self) -> impl Stream<Item = TokenBalanceUpdate> {
         let balance = get_shared_balance().read().await;
         let receiver = balance.sender.subscribe();
@@ -39,6 +41,7 @@ impl SubscriptionRoot {
     }
 
     /// Subscribe to sponsor wallet updates
+    #[instrument(skip(self))]
     async fn sponsor_wallet_updates(&self) -> impl Stream<Item = SponsorWalletDto> {
         let receiver = self.sponsor_wallet_query_receiver.resubscribe();
         tokio_stream::wrappers::BroadcastStream::new(receiver)
@@ -46,6 +49,7 @@ impl SubscriptionRoot {
     }
 
     /// Subscribe to client updates
+    #[instrument(skip(self))]
     async fn client_updates(&self) -> impl Stream<Item = ClientDto> {
         let receiver = self.client_query_receiver.resubscribe();
         tokio_stream::wrappers::BroadcastStream::new(receiver)
@@ -53,6 +57,7 @@ impl SubscriptionRoot {
     }
 
     // Subscribe to group updates
+    #[instrument(skip(self))]
     async fn group_updates(&self) -> impl Stream<Item = GroupDto> {
         let receiver = self.group_query_receiver.resubscribe();
         tokio_stream::wrappers::BroadcastStream::new(receiver)
