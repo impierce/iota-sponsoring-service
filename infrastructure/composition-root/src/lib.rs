@@ -13,6 +13,10 @@ use application::{
         group::GroupView,
         group_list::{GROUP_LIST_VIEW_ID, GroupListView},
         sponsor_wallet::{SPONSOR_WALLET_VIEW_ID, SponsorWalletView},
+        sponsorship_transaction,
+        sponsorship_transaction_list::{
+            SPONSORSHIP_TRANSACTION_LIST_VIEW_ID, SponsorshipTransactionListView,
+        },
     },
 };
 use balance_management::{client::aggregate::Client, group::aggregate::Group};
@@ -50,6 +54,8 @@ pub struct CompositionRoot {
     pub sponsor_wallet_view: Arc<MongoViewRepository<SponsorWalletView, SponsorWallet>>,
     pub client_view: Arc<MongoViewRepository<ClientView, Client>>,
     pub client_list_view: Arc<MongoViewRepository<ClientListView, Client>>,
+    pub sponsorship_transaction_list_view:
+        Arc<MongoViewRepository<SponsorshipTransactionListView, Group>>,
     pub group_view: Arc<MongoViewRepository<GroupView, Group>>,
     pub group_list_view: Arc<MongoViewRepository<GroupListView, Group>>,
 
@@ -136,6 +142,19 @@ impl CompositionRoot {
             (),
         ));
 
+        // --- Sponsorship Transaction Setup ---
+        info!("Setting up `SponsorshipTransaction` CQRS components");
+        let sponsorship_transaction_list_view: Arc<
+            MongoViewRepository<SponsorshipTransactionListView, Group>,
+        > = Arc::new(MongoViewRepository::new(
+            SPONSORSHIP_TRANSACTION_LIST_VIEW_ID,
+            client.clone(),
+        ));
+        let sponsorship_transaction_list_query = ListAllQuery::new(
+            sponsorship_transaction_list_view.clone(),
+            SPONSORSHIP_TRANSACTION_LIST_VIEW_ID,
+        );
+
         // --- Group Setup ---
         info!("Setting up `Group` CQRS components");
         let group_view: Arc<MongoViewRepository<GroupView, Group>> =
@@ -150,7 +169,11 @@ impl CompositionRoot {
         let group_query_receiver = Arc::new(group_channel.1);
         let group_handler = Arc::new(MongoCqrs::new(
             group_event_store,
-            vec![Box::new(group_query), Box::new(group_list_query)],
+            vec![
+                Box::new(group_query),
+                Box::new(group_list_query),
+                Box::new(sponsorship_transaction_list_query),
+            ],
             (),
         ));
 
@@ -195,6 +218,7 @@ impl CompositionRoot {
             sponsor_wallet_view,
             client_view,
             client_list_view,
+            sponsorship_transaction_list_view,
             group_view,
             group_list_view,
             sponsor_wallet_query_receiver,

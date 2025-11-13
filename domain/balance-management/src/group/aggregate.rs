@@ -4,6 +4,7 @@ use async_trait::async_trait;
 use cqrs_es::Aggregate;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, instrument, trace};
+use url::Url;
 use uuid::Uuid;
 
 use super::{
@@ -18,6 +19,8 @@ pub struct Group {
     pub group_id: Uuid,
     /// A user-friendly name for the group.
     pub name: String,
+    /// Logo URI for the group.
+    pub logo_uri: Option<Url>,
     /// The shared balance allocated to all members of this group.
     pub balance: u64,
     /// A collection of unique client IDs that are members of this group.
@@ -52,12 +55,20 @@ impl Aggregate for Group {
         let has_been_created = !self.group_id.is_nil();
 
         match command {
-            CreateGroup { group_id, name } => {
+            CreateGroup {
+                group_id,
+                name,
+                logo_uri,
+            } => {
                 if has_been_created {
                     debug!("Validation failed: Group already exists");
                     return Err(GroupAlreadyExists);
                 }
-                Ok(vec![GroupCreated { group_id, name }])
+                Ok(vec![GroupCreated {
+                    group_id,
+                    name,
+                    logo_uri,
+                }])
             }
 
             // For all other commands, the group must exist first.
@@ -65,6 +76,9 @@ impl Aggregate for Group {
                 debug!("Validation failed: Group not found");
                 Err(GroupNotFound)
             }
+
+            UpdateGroupName { name } => Ok(vec![GroupNameUpdated { name }]),
+            UpdateGroupLogoUri { logo_uri } => Ok(vec![GroupLogoUriUpdated { logo_uri }]),
 
             DeleteGroup { group_id } => Ok(vec![GroupDeleted {
                 group_id,
@@ -88,16 +102,35 @@ impl Aggregate for Group {
                 }
                 Ok(vec![FundsWithdrawnFromGroup { group_id, amount }])
             }
-            RecordTransactionFeePaid { transaction_fee } => {
+            RecordTransactionFeePaid {
+                client_id,
+                client_name,
+                transaction_fee,
+                transaction_fee_iot,
+                transaction_fee_eur,
+                transaction_fee_usd,
+            } => {
                 if self.balance < transaction_fee {
                     debug!("Validation failed: Insufficient balance to pay transaction fee");
                     return Err(InsufficientBalance);
                 }
                 let new_balance = self.balance - transaction_fee;
 
+                let timestamp = chrono::Utc::now();
+
+                let sponsorship_transaction_id = Uuid::new_v4();
+
                 Ok(vec![TransactionFeePaidRecorded {
+                    sponsorship_transaction_id,
                     group_id: self.group_id,
+                    client_id,
+                    client_name,
+                    transaction_fee,
+                    transaction_fee_iot,
+                    transaction_fee_eur,
+                    transaction_fee_usd,
                     new_balance,
+                    timestamp,
                 }])
             }
         }
@@ -109,11 +142,22 @@ impl Aggregate for Group {
         use GroupEvent::*;
 
         match event {
-            GroupCreated { group_id, name } => {
+            GroupCreated {
+                group_id,
+                name,
+                logo_uri,
+            } => {
                 self.group_id = group_id;
                 self.name = name;
+                self.logo_uri = logo_uri;
                 self.balance = 0;
                 self.members = HashSet::new();
+            }
+            GroupNameUpdated { name } => {
+                self.name = name;
+            }
+            GroupLogoUriUpdated { logo_uri } => {
+                self.logo_uri = logo_uri;
             }
             GroupDeleted {
                 group_id: _,
@@ -147,12 +191,19 @@ impl Aggregate for Group {
                 self.balance = self.balance.saturating_sub(amount);
             }
             TransactionFeePaidRecorded {
+                sponsorship_transaction_id: _,
                 group_id: _,
+                client_id: _,
+                client_name: _,
+                transaction_fee: _,
+                transaction_fee_iot: _,
+                transaction_fee_eur: _,
+                transaction_fee_usd: _,
                 new_balance,
+                timestamp: _,
             } => {
                 self.balance = new_balance;
             }
-            _ => unimplemented!(),
         }
     }
 }

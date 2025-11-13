@@ -5,6 +5,7 @@ edition = "2024"
 
 [dependencies]
 async-trait.workspace = true
+chrono.workspace = true
 cqrs-es.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -12,4 +13,5 @@ strum.workspace = true
 thiserror.workspace = true
 tokio.workspace = true
 tracing.workspace = true
+url.workspace = true
 uuid.workspace = true

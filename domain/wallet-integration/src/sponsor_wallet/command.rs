@@ -1,3 +1,5 @@
+use url::Url;
+
 #[derive(Debug)]
 pub enum SponsorWalletCommand {
     CreateSponsorWallet {
@@ -5,6 +7,15 @@ pub enum SponsorWalletCommand {
         address: String,
         balance: u64,
     },
+
+    UpdateSponsorWalletName {
+        name: String,
+    },
+
+    UpdateSponsorWalletLogoUri {
+        logo_uri: Option<Url>,
+    },
+
     RecordBalanceUpdate {
         new_balance: u64,
     },

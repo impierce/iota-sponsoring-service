@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use cqrs_es::Aggregate;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, instrument, trace};
+use url::Url;
 use uuid::Uuid;
 
 use super::{
@@ -16,6 +17,10 @@ pub struct Client {
     pub client_id: Uuid,
     /// A user-friendly name for the client.
     pub name: String,
+    /// Logo URI for the client.
+    pub logo_uri: Option<Url>,
+    /// Website URI for more information about the client.
+    pub website_uri: Option<Url>,
     /// The client's IOTA wallet address for transactions.
     pub wallet_address: String,
     /// An optional individual balance. This will be `Some(amount)` if the client
@@ -57,6 +62,8 @@ impl Aggregate for Client {
             RegisterClient {
                 client_id,
                 name,
+                logo_uri,
+                website_uri,
                 wallet_address,
             } => {
                 if has_been_created {
@@ -66,6 +73,8 @@ impl Aggregate for Client {
                 Ok(vec![ClientRegistered {
                     client_id,
                     name,
+                    logo_uri,
+                    website_uri,
                     wallet_address,
                 }])
             }
@@ -74,6 +83,15 @@ impl Aggregate for Client {
             _ if !has_been_created => {
                 debug!("Validation failed: Client not found");
                 Err(ClientNotFound)
+            }
+
+            UpdateClientName { name } => Ok(vec![ClientNameUpdated { name }]),
+            UpdateClientLogoUri { logo_uri } => Ok(vec![ClientLogoUriUpdated { logo_uri }]),
+            UpdateClientWebsiteUri { website_uri } => {
+                Ok(vec![ClientWebsiteUriUpdated { website_uri }])
+            }
+            UpdateClientWalletAddress { wallet_address } => {
+                Ok(vec![ClientWalletAddressUpdated { wallet_address }])
             }
 
             RemoveClient { client_id } => Ok(vec![ClientRemoved {
@@ -115,10 +133,26 @@ impl Aggregate for Client {
             ClientRegistered {
                 client_id,
                 name,
+                logo_uri,
+                website_uri,
                 wallet_address,
             } => {
                 self.client_id = client_id;
                 self.name = name;
+                self.logo_uri = logo_uri;
+                self.website_uri = website_uri;
+                self.wallet_address = wallet_address;
+            }
+            ClientNameUpdated { name } => {
+                self.name = name;
+            }
+            ClientLogoUriUpdated { logo_uri } => {
+                self.logo_uri = logo_uri;
+            }
+            ClientWebsiteUriUpdated { website_uri } => {
+                self.website_uri = website_uri;
+            }
+            ClientWalletAddressUpdated { wallet_address } => {
                 self.wallet_address = wallet_address;
             }
             ClientRemoved {

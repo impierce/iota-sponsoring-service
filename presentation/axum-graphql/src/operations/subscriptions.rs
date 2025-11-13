@@ -1,5 +1,5 @@
-use super::{ClientDto, GroupDto, TokenBalanceUpdate};
-use crate::operations::{SponsorWalletDto, get_shared_balance};
+use super::{ClientDto, GroupDto};
+use crate::operations::SponsorWalletDto;
 use application::views::{client::ClientView, group::GroupView, sponsor_wallet::SponsorWalletView};
 use async_graphql::Subscription;
 use futures_util::{Stream, StreamExt};
@@ -30,16 +30,6 @@ impl SubscriptionRoot {
 
 #[Subscription]
 impl SubscriptionRoot {
-    /// Subscribe to token balance updates
-    #[instrument(skip(self))]
-    async fn token_balance_updates(&self) -> impl Stream<Item = TokenBalanceUpdate> {
-        let balance = get_shared_balance().read().await;
-        let receiver = balance.sender.subscribe();
-
-        tokio_stream::wrappers::BroadcastStream::new(receiver)
-            .filter_map(|result| async move { result.ok() })
-    }
-
     /// Subscribe to sponsor wallet updates
     #[instrument(skip(self))]
     async fn sponsor_wallet_updates(&self) -> impl Stream<Item = SponsorWalletDto> {

@@ -6,6 +6,8 @@ use balance_management::{
     group::{aggregate::Group, command::GroupCommand},
 };
 use cqrs_es::{CqrsFramework, EventStore, persist::ViewRepository};
+use iota_types::transaction;
+use serde::{Deserialize, Serialize};
 use tracing::{debug, error, info, instrument, warn};
 use uuid::Uuid;
 use wallet_integration::sponsor_wallet::{aggregate::SponsorWallet, command::SponsorWalletCommand};
@@ -61,6 +63,86 @@ where
         }
     }
 
+    #[instrument(skip(self), fields(sponsor_wallet_id = %sponsor_wallet_id, name = %name))]
+    pub async fn update_sponsor_wallet_name(
+        &self,
+        sponsor_wallet_id: String,
+        name: String,
+    ) -> Result<SponsorWalletView> {
+        info!("Updating sponsor wallet name");
+        let command = SponsorWalletCommand::UpdateSponsorWalletName { name };
+
+        debug!("Dispatching UpdateSponsorWalletName command");
+        self.sponsor_wallet_handler
+            .execute(&sponsor_wallet_id, command)
+            .await?;
+
+        let view = self
+            .sponsor_wallet_view
+            .load(&sponsor_wallet_id)
+            .await?
+            .ok_or_else(|| {
+                let err_msg = format!(
+                    "Sponsor wallet view not found after updating name for `{sponsor_wallet_id}`"
+                );
+                error!("{}", err_msg);
+                anyhow!(err_msg)
+            })?;
+
+        debug!(?view, "Successfully loaded updated sponsor wallet view");
+        info!("Successfully updated sponsor wallet name");
+        Ok(view)
+    }
+
+    #[instrument(skip(self), fields(sponsor_wallet_id = %sponsor_wallet_id, logo_uri = ?logo_uri))]
+    pub async fn update_sponsor_wallet_logo_uri(
+        &self,
+        sponsor_wallet_id: String,
+        logo_uri: Option<url::Url>,
+    ) -> Result<SponsorWalletView> {
+        info!("Updating sponsor wallet logo URI");
+        let command = SponsorWalletCommand::UpdateSponsorWalletLogoUri { logo_uri };
+
+        debug!("Dispatching UpdateSponsorWalletLogoUri command");
+        self.sponsor_wallet_handler
+            .execute(&sponsor_wallet_id, command)
+            .await?;
+
+        let view = self
+            .sponsor_wallet_view
+            .load(&sponsor_wallet_id)
+            .await?
+            .ok_or_else(|| {
+                let err_msg = format!("Sponsor wallet view not found after updating logo URI for `{sponsor_wallet_id}`");
+                error!("{}", err_msg);
+                anyhow!(err_msg)
+            })?;
+
+        debug!(?view, "Successfully loaded updated sponsor wallet view");
+        info!("Successfully updated sponsor wallet logo URI");
+        Ok(view)
+    }
+
+    pub async fn get_sponsor_wallet_view(
+        &self,
+        sponsor_wallet_id: String,
+    ) -> Result<SponsorWalletView> {
+        info!("Getting sponsor wallet view");
+        let view = self
+            .sponsor_wallet_view
+            .load(&sponsor_wallet_id)
+            .await?
+            .ok_or_else(|| {
+                let err_msg = format!("Sponsor wallet view not found for id `{sponsor_wallet_id}`");
+                error!("{}", err_msg);
+                anyhow!(err_msg)
+            })?;
+
+        debug!(?view, "Successfully loaded sponsor wallet view");
+        info!("Successfully got sponsor wallet view");
+        Ok(view)
+    }
+
     #[instrument(skip(self), fields(sponsor_wallet_id = %sponsor_wallet_id, new_balance = %new_balance))]
     pub async fn record_balance_update(
         &self,
@@ -109,10 +191,10 @@ where
                 )
             })?;
 
-        let _client_view = client_list_view
+        let client_view = client_list_view
             .into_inner()
             .into_values()
-            .find(|_client_view| _client_view.wallet_address == sender_address)
+            .find(|client_view| client_view.wallet_address == sender_address)
             .ok_or_else(|| {
                 anyhow!(
                     "Client view not found for address `{}` during transaction fee recording",
@@ -120,11 +202,26 @@ where
                 )
             })?;
 
-        debug!(client_id = %_client_view.client_id, "Found client for sender address");
+        debug!(client_id = %client_view.client_id, "Found client for sender address");
 
-        if let Some(group_id) = &_client_view.group_id {
+        let transaction_fee_iot = transaction_fee as f64 / 1_000_000_000.0;
+
+        let transaction_fee_eur =
+            get_iota_eur_price().await * (transaction_fee as f64 / 1_000_000_000.0);
+
+        let transaction_fee_usd =
+            get_iota_usd_price().await * (transaction_fee as f64 / 1_000_000_000.0);
+
+        if let Some(group_id) = &client_view.group_id {
             debug!(group_id = %group_id, "Client belongs to a group, dispatching `RecordTransactionFeePaid` command");
-            let command = GroupCommand::RecordTransactionFeePaid { transaction_fee };
+            let command = GroupCommand::RecordTransactionFeePaid {
+                client_id: client_view.client_id,
+                client_name: client_view.name.clone(),
+                transaction_fee,
+                transaction_fee_iot,
+                transaction_fee_eur,
+                transaction_fee_usd,
+            };
 
             self.group_handler
                 .execute(&group_id.to_string(), command)
@@ -233,4 +330,54 @@ where
         info!("Successfully withdrew funds from group");
         Ok(view)
     }
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BitvavoIotaEurPriceTickerResponse {
+    pub market: String,
+    pub price: String,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
+pub struct BinanceIotaUsdtPriceTickerResponse {
+    pub symbol: String,
+    pub price: String,
+}
+
+// TODO: Remove hardcoded fallback prices and implement proper error handling!
+pub async fn get_iota_eur_price() -> f64 {
+    if let Ok(response) =
+        reqwest::get("https://api.bitvavo.com/v2/ticker/price?market=MIOTA-EUR").await
+    {
+        if let Ok(response) = response.json::<BitvavoIotaEurPriceTickerResponse>().await {
+            debug!(?response, "Fetched IOTA-EUR price from Bitvavo");
+
+            return response.price.parse::<f64>().unwrap_or(0.13);
+        } else {
+            warn!("Failed to parse Bitvavo IOTA-EUR price ticker response");
+        }
+    } else {
+        warn!("Failed to fetch IOTA-EUR price from Bitvavo");
+    }
+
+    0.13
+}
+
+// TODO: Remove hardcoded fallback prices and implement proper error handling!
+pub async fn get_iota_usd_price() -> f64 {
+    if let Ok(response) =
+        reqwest::get("https://api.binance.com/api/v3/ticker/price?symbol=IOTAUSDT").await
+    {
+        if let Ok(response) = response.json::<BinanceIotaUsdtPriceTickerResponse>().await {
+            debug!(?response, "Fetched IOTA-USDT price from Binance");
+
+            return response.price.parse::<f64>().unwrap_or(0.15);
+        } else {
+            warn!("Failed to parse Binance IOTA-USDT price ticker response");
+        }
+    } else {
+        warn!("Failed to fetch IOTA-USDT price from Binance");
+    }
+
+    0.15
 }

@@ -2,24 +2,9 @@
 type = "docker_logs"
 include_containers = ["iota-gas-station"]
 
-[transforms.filter_relevant_logs]
-type = "remap"
-inputs = ["gas_station_logs"]
-source = '''
-# Check if the message matches any of the required patterns.
-# If it doesn't match any of them, abort the event.
-if !(contains_regex(.message, r'Total gas coin balance prior to execution: \d+ reservation_id=') ||
-     contains_regex(.message, r'Executing transaction:.*?sender: 0x[0-9a-fA-F]+') ||
-     contains_regex(.message, r'New gas coin balance after execution: \d+ reservation_id=') ||
-     contains_regex(.message, r'After add_new_coins. New total balance: \d+')) {
-  abort()
-}
-# Otherwise, the event passes through to the next transform.
-'''
-
 [transforms.reshape_log]
 type = "remap"
-inputs = ["filter_relevant_logs"]
+inputs = ["gas_station_logs"]
 source = '''
 # Replace the entire event with just the raw message string.
 . = .message

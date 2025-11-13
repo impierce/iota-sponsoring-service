@@ -1,5 +1,6 @@
 use cqrs_es::DomainEvent;
 use serde::{Deserialize, Serialize};
+use url::Url;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, strum::Display)]
 pub enum SponsorWalletEvent {
@@ -7,6 +8,12 @@ pub enum SponsorWalletEvent {
         sponsor_wallet_id: String,
         address: String,
         balance: u64,
+    },
+    ClientNameUpdated {
+        name: String,
+    },
+    ClientLogoUriUpdated {
+        logo_uri: Option<Url>,
     },
     BalanceUpdateRecorded {
         new_balance: u64,

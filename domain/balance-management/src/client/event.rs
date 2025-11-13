@@ -1,5 +1,6 @@
 use cqrs_es::DomainEvent;
 use serde::{Deserialize, Serialize};
+use url::Url;
 use uuid::Uuid;
 
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, strum::Display)]
@@ -7,6 +8,20 @@ pub enum ClientEvent {
     ClientRegistered {
         client_id: Uuid,
         name: String,
+        logo_uri: Option<Url>,
+        website_uri: Option<Url>,
+        wallet_address: String,
+    },
+    ClientNameUpdated {
+        name: String,
+    },
+    ClientLogoUriUpdated {
+        logo_uri: Option<Url>,
+    },
+    ClientWebsiteUriUpdated {
+        website_uri: Option<Url>,
+    },
+    ClientWalletAddressUpdated {
         wallet_address: String,
     },
     ClientRemoved {

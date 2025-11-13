@@ -31,7 +31,7 @@ async fn main() {
 
     // Read MongoDB URI from environment variable with fallback
     let mongo_uri = env::var("MONGODB_URI")
-        .unwrap_or_else(|_| "mongodb://localhost:27017/ssi-agent?directConnection=true&retryWrites=false&replicaSet=rs0".to_string());
+        .unwrap_or_else(|_| "mongodb://localhost:27017/iota-sponsoring-service?directConnection=true&retryWrites=false&replicaSet=rs0".to_string());
 
     // Read Gas Station config path from environment variable with fallback
     let gas_station_config_path = env::var("GAS_STATION_CONFIG_PATH")

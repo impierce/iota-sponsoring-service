@@ -2,6 +2,7 @@ use async_trait::async_trait;
 use cqrs_es::Aggregate;
 use serde::{Deserialize, Serialize};
 use tracing::{debug, instrument, trace};
+use url::Url;
 
 use super::{
     command::SponsorWalletCommand,
@@ -13,6 +14,8 @@ use super::{
 pub struct SponsorWallet {
     /// The unique identifier for the sponsor wallet
     pub sponsor_wallet_id: String,
+    pub name: Option<String>,
+    pub logo_uri: Option<Url>,
     pub address: String,
     pub balance: u64,
 }
@@ -65,6 +68,9 @@ impl Aggregate for SponsorWallet {
                 Err(SponsorWalletNotFound)
             }
 
+            UpdateSponsorWalletName { name } => Ok(vec![ClientNameUpdated { name }]),
+            UpdateSponsorWalletLogoUri { logo_uri } => Ok(vec![ClientLogoUriUpdated { logo_uri }]),
+
             RecordBalanceUpdate { new_balance } => {
                 debug!("Recording balance update to {}", new_balance);
                 Ok(vec![BalanceUpdateRecorded { new_balance }])
@@ -86,6 +92,12 @@ impl Aggregate for SponsorWallet {
                 self.sponsor_wallet_id = sponsor_wallet_id;
                 self.address = address;
                 self.balance = balance;
+            }
+            ClientNameUpdated { name } => {
+                self.name = Some(name);
+            }
+            ClientLogoUriUpdated { logo_uri } => {
+                self.logo_uri = logo_uri;
             }
             BalanceUpdateRecorded { new_balance } => {
                 self.balance = new_balance;

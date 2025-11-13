@@ -1,13 +1,12 @@
 pub mod graphql_endpoint_service;
 pub mod operations;
 
-use std::{collections::HashMap, sync::Arc};
+use std::sync::Arc;
 
 use application::{
     services::{
         allocation_service::AllocationService,
         authorize_transaction_service::AuthorizeTransactionService,
-        balance_management_service::BalanceManagementService,
     },
     views::sponsor_wallet::SPONSOR_WALLET_VIEW_ID,
 };
@@ -19,17 +18,15 @@ use axum::{
     routing::{get, post},
 };
 use balance_management::{client::aggregate::Client, group::aggregate::Group};
-use chrono::{DateTime, Utc};
 use composition_root::CompositionRoot;
 use cqrs_es::persist::PersistedEventStore;
 use iota_gas_station::access_controller::hook::{
     ExecuteTxHookRequest, ExecuteTxOkResponse, SkippableDecision,
 };
-use iota_json_rpc_types::IotaTransactionBlockEffects;
 use mongo_es::MongoEventRepository;
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 use tokio::net::TcpListener;
+use tower_http::cors::{Any, CorsLayer};
 use wallet_integration::sponsor_wallet::aggregate::SponsorWallet;
 
 use crate::{
@@ -45,20 +42,6 @@ async fn graphiql() -> impl IntoResponse {
             .finish(),
     )
 }
-
-// #[derive(Debug, Serialize, Deserialize)]
-// pub struct VectorLogEvent {
-//     pub container_created_at: DateTime<Utc>,
-//     pub container_id: String,
-//     pub container_name: String,
-//     pub host: String,
-//     pub image: String,
-//     pub label: HashMap<String, String>,
-//     pub message: String,
-//     pub source_type: String,
-//     pub stream: String,
-//     pub timestamp: DateTime<Utc>,
-// }
 
 #[derive(Debug, Serialize, Deserialize)]
 struct Event {
@@ -225,6 +208,7 @@ async fn app(
         sponsor_wallet_view,
         client_view,
         client_list_view,
+        sponsorship_transaction_list_view,
         group_view,
         group_list_view,
         sponsor_wallet_query_receiver,
@@ -236,6 +220,7 @@ async fn app(
         sponsor_wallet_view,
         client_view,
         client_list_view,
+        sponsorship_transaction_list_view,
         group_view,
         group_list_view,
     );
@@ -247,6 +232,11 @@ async fn app(
     );
     let schema = Schema::new(query_root, mutation_root, subscription_root);
 
+    let cors = CorsLayer::new()
+        .allow_origin(Any)
+        .allow_methods(Any)
+        .allow_headers(Any);
+
     Router::new()
         .route("/", get(graphiql))
         .route("/webhook/transaction", post(handle_transaction_webhook))
@@ -257,6 +247,7 @@ async fn app(
         )
         .with_state(authorize_transaction_service)
         .route_service("/graphql", GraphQLEndpointService::new(schema))
+    // .layer(cors)
 }
 
 pub async fn run(addr: &str, composition_root: CompositionRoot) {

@@ -32,12 +32,15 @@ exclude = ["submodules/gas-station"]
 [workspace.dependencies]
 anyhow = "1.0"
 async-trait = "0.1"
+chrono = { version = "0.4", features = ["serde"] }
 cqrs-es = "0.4"
 iota-gas-station = { path = "submodules/gas-station" }
+reqwest = { version = "0.12", features = ["json"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 strum = { version = "0.27", features = ["derive"] }
 thiserror = "2"
 tokio = { version = "1.48", features = ["full"] }
 tracing = "0.1"
+url = "2.5"
 uuid = { version = "1.18", features = ["v4"] }
