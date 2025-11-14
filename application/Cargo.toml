@@ -16,6 +16,7 @@ cqrs-es.workspace = true
 iota-gas-station.workspace = true
 iota-sdk = { git = "https://github.com/iotaledger/iota", tag = "v1.7.0", package = "iota-sdk" }
 iota-types = { git = "https://github.com/iotaledger/iota", tag = "v1.7.0", package = "iota-types" }
+rand.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true

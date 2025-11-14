@@ -364,6 +364,16 @@ pub async fn get_iota_eur_price() -> f64 {
 }
 
 // TODO: Remove hardcoded fallback prices and implement proper error handling!
+pub async fn get_eur_iota_price() -> f64 {
+    let iota_eur_price = get_iota_eur_price().await;
+    if iota_eur_price > 0.0 {
+        1.0 / iota_eur_price
+    } else {
+        7.69 // Fallback price
+    }
+}
+
+// TODO: Remove hardcoded fallback prices and implement proper error handling!
 pub async fn get_iota_usd_price() -> f64 {
     if let Ok(response) =
         reqwest::get("https://api.binance.com/api/v3/ticker/price?symbol=IOTAUSDT").await
@@ -380,4 +390,42 @@ pub async fn get_iota_usd_price() -> f64 {
     }
 
     0.15
+}
+
+// TODO: Remove hardcoded fallback prices and implement proper error handling!
+pub async fn get_usd_iota_price() -> f64 {
+    let iota_usd_price = get_iota_usd_price().await;
+    if iota_usd_price > 0.0 {
+        1.0 / iota_usd_price
+    } else {
+        6.67 // Fallback price
+    }
+}
+
+pub async fn get_conversion_rates() -> (f64, f64, f64, f64, f64, f64, f64, f64, f64, f64) {
+    let iot_to_eur = get_iota_eur_price().await;
+    let eur_to_iot = get_eur_iota_price().await;
+    let iot_to_usd = get_iota_usd_price().await;
+    let usd_to_iot = get_usd_iota_price().await;
+
+    let nano_to_iot = 1.0 / 1_000_000_000.0;
+    let nano_to_eur = nano_to_iot * iot_to_eur;
+    let nano_to_usd = nano_to_iot * iot_to_usd;
+
+    let iot_to_nano = 1_000_000_000.0;
+    let eur_to_nano = eur_to_iot * iot_to_nano;
+    let usd_to_nano = usd_to_iot * iot_to_nano;
+
+    (
+        nano_to_iot,
+        iot_to_nano,
+        nano_to_eur,
+        eur_to_nano,
+        nano_to_usd,
+        usd_to_nano,
+        iot_to_eur,
+        eur_to_iot,
+        iot_to_usd,
+        usd_to_iot,
+    )
 }

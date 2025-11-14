@@ -6,6 +6,7 @@ use application::{
         allocation_service::AllocationService,
         authorize_transaction_service::AuthorizeTransactionService,
         balance_management_service::BalanceManagementService,
+        demo_initialization_service::DemoInitializationService,
     },
     views::{
         client::ClientView,
@@ -13,7 +14,6 @@ use application::{
         group::GroupView,
         group_list::{GROUP_LIST_VIEW_ID, GroupListView},
         sponsor_wallet::{SPONSOR_WALLET_VIEW_ID, SponsorWalletView},
-        sponsorship_transaction,
         sponsorship_transaction_list::{
             SPONSORSHIP_TRANSACTION_LIST_VIEW_ID, SponsorshipTransactionListView,
         },
@@ -69,7 +69,11 @@ impl CompositionRoot {
         name = "CompositionRoot::new",
         skip(mongo_uri, gas_station_config_path)
     )]
-    pub async fn new(mongo_uri: String, gas_station_config_path: String) -> Self {
+    pub async fn new(
+        mongo_uri: String,
+        gas_station_config_path: String,
+        demo_data_initialization_enabled: bool,
+    ) -> Self {
         info!("Initializing application composition root");
 
         let client = default_mongo_client(&mongo_uri).await;
@@ -191,7 +195,7 @@ impl CompositionRoot {
         ));
 
         let authorize_transaction_service = Arc::new(AuthorizeTransactionService::new(
-            sponsor_wallet_handler,
+            sponsor_wallet_handler.clone(),
             client_handler.clone(),
             group_handler.clone(),
             sponsor_wallet_view.clone(),
@@ -202,13 +206,33 @@ impl CompositionRoot {
         ));
 
         let balance_management_service = Arc::new(BalanceManagementService::new(
-            client_handler,
-            group_handler,
+            client_handler.clone(),
+            group_handler.clone(),
             client_view.clone(),
             client_list_view.clone(),
             group_view.clone(),
             group_list_view.clone(),
         ));
+
+        if demo_data_initialization_enabled {
+            info!("Demo data initialization is enabled");
+
+            let demo_initialization_service = DemoInitializationService::new(
+                sponsor_wallet_handler,
+                client_handler.clone(),
+                group_handler.clone(),
+                sponsor_wallet_view.clone(),
+                client_view.clone(),
+                client_list_view.clone(),
+                group_view.clone(),
+                group_list_view.clone(),
+            );
+
+            info!("Running demo data initialization");
+            demo_initialization_service.initialize().await.unwrap();
+        } else {
+            info!("Demo data initialization is disabled");
+        }
 
         info!("Composition root initialization complete");
         Self {

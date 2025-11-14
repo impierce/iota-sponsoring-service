@@ -13,6 +13,20 @@ use super::{
     event::GroupEvent::{self, *},
 };
 
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum Variant {
+    Action,
+    Warning,
+    #[default]
+    Success,
+}
+
+#[derive(Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
+pub struct Status {
+    pub variant: Variant,
+}
+
 #[derive(Serialize, Deserialize, Default, Debug, Clone)]
 pub struct Group {
     /// The unique identifier for the group.
@@ -25,6 +39,8 @@ pub struct Group {
     pub balance: u64,
     /// A collection of unique client IDs that are members of this group.
     pub members: HashSet<Uuid>,
+    /// The status indicating the current state of the group.
+    pub status: Status,
     /// Indicates whether the group has been deleted.
     pub is_deleted: bool,
 }
@@ -79,6 +95,7 @@ impl Aggregate for Group {
 
             UpdateGroupName { name } => Ok(vec![GroupNameUpdated { name }]),
             UpdateGroupLogoUri { logo_uri } => Ok(vec![GroupLogoUriUpdated { logo_uri }]),
+            UpdateGroupStatus { status } => Ok(vec![GroupStatusUpdated { status }]),
 
             DeleteGroup { group_id } => Ok(vec![GroupDeleted {
                 group_id,
@@ -133,6 +150,33 @@ impl Aggregate for Group {
                     timestamp,
                 }])
             }
+            RecordTransactionFeePaidForDemo {
+                client_id,
+                client_name,
+                transaction_fee,
+                transaction_fee_iot,
+                transaction_fee_eur,
+                transaction_fee_usd,
+                timestamp,
+            } => {
+                // In demo mode, we allow recording transaction fees without checking the balance.
+                let new_balance = self.balance;
+
+                let sponsorship_transaction_id = Uuid::new_v4();
+
+                Ok(vec![TransactionFeePaidRecorded {
+                    sponsorship_transaction_id,
+                    group_id: self.group_id,
+                    client_id,
+                    client_name,
+                    transaction_fee,
+                    transaction_fee_iot,
+                    transaction_fee_eur,
+                    transaction_fee_usd,
+                    new_balance,
+                    timestamp,
+                }])
+            }
         }
     }
 
@@ -158,6 +202,9 @@ impl Aggregate for Group {
             }
             GroupLogoUriUpdated { logo_uri } => {
                 self.logo_uri = logo_uri;
+            }
+            GroupStatusUpdated { status } => {
+                self.status = status;
             }
             GroupDeleted {
                 group_id: _,

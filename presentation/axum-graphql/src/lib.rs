@@ -27,6 +27,7 @@ use mongo_es::MongoEventRepository;
 use serde::{Deserialize, Serialize};
 use tokio::net::TcpListener;
 use tower_http::cors::{Any, CorsLayer};
+use tracing::{info, warn};
 use wallet_integration::sponsor_wallet::aggregate::SponsorWallet;
 
 use crate::{
@@ -81,18 +82,18 @@ async fn read_log_events(
             if let Some(balance_match) = captures.name("balance") {
                 match balance_match.as_str().parse::<u64>() {
                     Ok(balance_prior) => {
-                        println!("Successfully parsed prior balance: {balance_prior}");
+                        info!("Successfully parsed prior balance: {balance_prior}");
 
                         prior = balance_prior;
                     }
                     Err(e) => {
-                        eprintln!("Failed to parse balance from log: {}", e);
+                        warn!("Failed to parse balance from log: {}", e);
                     }
                 }
             }
         } else if let Some(captures) = executing_transaction_regex.captures(&event.message) {
             if let Some(sender_match) = captures.name("sender") {
-                println!("Successfully parsed sender: {}", sender_match.as_str());
+                info!("Successfully parsed sender: {}", sender_match.as_str());
 
                 wallet_addresss = sender_match.as_str().to_string();
             }
@@ -100,12 +101,12 @@ async fn read_log_events(
             if let Some(balance_match) = captures.name("balance") {
                 match balance_match.as_str().parse::<u64>() {
                     Ok(balance_after) => {
-                        println!("Successfully parsed new balance: {balance_after}");
+                        info!("Successfully parsed new balance: {balance_after}");
 
                         after = balance_after;
                     }
                     Err(e) => {
-                        eprintln!("Failed to parse balance from log: {}", e);
+                        warn!("Failed to parse balance from log: {}", e);
                     }
                 }
             }
@@ -113,9 +114,7 @@ async fn read_log_events(
             if let Some(balance_match) = captures.name("balance") {
                 match balance_match.as_str().parse::<u64>() {
                     Ok(new_total_balance_match) => {
-                        println!(
-                            "Successfully parsed new total balance: {new_total_balance_match}"
-                        );
+                        info!("Successfully parsed new total balance: {new_total_balance_match}");
 
                         new_total_balance = new_total_balance_match;
 
@@ -128,33 +127,23 @@ async fn read_log_events(
                             .unwrap();
                     }
                     Err(e) => {
-                        eprintln!("Failed to parse new total balance from log: {}", e);
+                        warn!("Failed to parse new total balance from log: {}", e);
                     }
                 }
             }
         } else {
-            // eprintln!("Could not find JSON in log message: {}", event.message);
+            // warn!("Could not find JSON in log message: {}", event.message);
         }
     }
 
     if prior > 0 {
         let transaction_fee = prior - after;
 
-        println!(
-            "Transaction cost for wallet {}: {}",
-            wallet_addresss, transaction_fee
-        );
-
         allocation_service
             .record_transaction_fee_paid(wallet_addresss.clone(), transaction_fee)
             .await
             .unwrap();
     }
-
-    // println!("Final before balance: {}", before);
-    // println!("Final after balance: {}", after);
-    // println!("Wallet address: {}", wallet_addresss);
-    // println!("New total balance: {}", new_total_balance);
 }
 
 async fn handle_transaction_webhook(
@@ -194,13 +183,14 @@ async fn authorize_transaction_webhook(
             user_message: None,
         })),
         Err(e) => {
-            println!("Failed to authorize transaction: {}", e);
+            info!("Failed to authorize transaction: {}", e);
             Err(format!("Failed to authorize transaction: {}", e))
         }
     }
 }
 
 async fn app(
+    cors_enabled: bool,
     CompositionRoot {
         allocation_service,
         authorize_transaction_service,
@@ -220,7 +210,7 @@ async fn app(
         sponsor_wallet_view,
         client_view,
         client_list_view,
-        sponsorship_transaction_list_view,
+        sponsorship_transaction_list_view.clone(),
         group_view,
         group_list_view,
     );
@@ -229,15 +219,11 @@ async fn app(
         sponsor_wallet_query_receiver,
         client_query_receiver,
         group_query_receiver,
+        sponsorship_transaction_list_view,
     );
     let schema = Schema::new(query_root, mutation_root, subscription_root);
 
-    let cors = CorsLayer::new()
-        .allow_origin(Any)
-        .allow_methods(Any)
-        .allow_headers(Any);
-
-    Router::new()
+    let app = Router::new()
         .route("/", get(graphiql))
         .route("/webhook/transaction", post(handle_transaction_webhook))
         .with_state(allocation_service)
@@ -246,15 +232,25 @@ async fn app(
             post(authorize_transaction_webhook),
         )
         .with_state(authorize_transaction_service)
-        .route_service("/graphql", GraphQLEndpointService::new(schema))
-    // .layer(cors)
+        .route_service("/graphql", GraphQLEndpointService::new(schema));
+
+    if cors_enabled {
+        app.layer(
+            CorsLayer::new()
+                .allow_origin(Any)
+                .allow_methods(Any)
+                .allow_headers(Any),
+        )
+    } else {
+        app
+    }
 }
 
-pub async fn run(addr: &str, composition_root: CompositionRoot) {
-    let app = app(composition_root).await;
+pub async fn run(addr: &str, cors_enabled: bool, composition_root: CompositionRoot) {
+    let app = app(cors_enabled, composition_root).await;
 
-    println!("GraphiQL IDE: http://{}", addr);
-    println!("GraphQL endpoint: http://{}/graphql", addr);
+    info!("GraphiQL IDE: http://{}", addr);
+    info!("GraphQL endpoint: http://{}/graphql", addr);
 
     axum::serve(TcpListener::bind(addr).await.unwrap(), app)
         .await

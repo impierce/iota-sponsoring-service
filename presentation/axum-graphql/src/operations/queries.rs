@@ -1,6 +1,6 @@
 use anyhow::Result;
 use application::{
-    services::allocation_service::{get_iota_eur_price, get_iota_usd_price},
+    services::allocation_service::get_conversion_rates,
     views::{
         client::ClientView,
         client_list::{CLIENT_LIST_VIEW_ID, ClientListView},
@@ -30,7 +30,7 @@ use uuid::Uuid;
 use wallet_integration::sponsor_wallet::aggregate::SponsorWallet;
 
 use crate::operations::{
-    ClientDto, GroupDto, Metrics, SponsorWalletDto, SponsorshipTransactionDto,
+    ClientDto, ConversionRatesDto, GroupDto, Metrics, SponsorWalletDto, SponsorshipTransactionDto,
 };
 
 #[derive(Clone)]
@@ -158,7 +158,12 @@ impl QueryRoot {
 
     /// Returns the list of all clients
     #[instrument(skip(self))]
-    async fn get_client_list(&self) -> Result<Vec<ClientDto>> {
+    async fn get_client_list(&self, group_id: Option<Uuid>) -> Result<Vec<ClientDto>> {
+        let transactions = self
+            .sponsorship_transaction_list_view
+            .load(SPONSORSHIP_TRANSACTION_LIST_VIEW_ID)
+            .await?;
+
         Ok(self
             .client_list_view
             .load(CLIENT_LIST_VIEW_ID)
@@ -169,7 +174,29 @@ impl QueryRoot {
                     .values()
                     .cloned()
                     .filter_map(|client_view| {
-                        (!client_view.is_deleted).then(|| ClientDto::from(client_view))
+                        (!client_view.is_deleted
+                            && group_id
+                                .map(|group_id| client_view.group_id == Some(group_id))
+                                .unwrap_or(true))
+                        .then(|| {
+                            let mut client = ClientDto::from(client_view.clone());
+
+                            let transactions = transactions
+                                .clone()
+                                .map(|sponsorship_transaction_list_view| {
+                                    sponsorship_transaction_list_view
+                                        .into_inner()
+                                        .values()
+                                        .cloned()
+                                        .filter(|tx| tx.client_id == client_view.client_id)
+                                        .collect::<Vec<SponsorshipTransactionView>>()
+                                })
+                                .unwrap_or_default();
+
+                            client.metrics = Metrics::from(transactions);
+
+                            client
+                        })
                     })
                     .collect()
             })
@@ -196,7 +223,7 @@ impl QueryRoot {
             })
             .unwrap_or_default();
 
-        sponsorship_transaction_list.sort_by(|a, b| b.timestamp.cmp(&a.timestamp));
+        sponsorship_transaction_list.sort_by(|a, b| a.timestamp.cmp(&b.timestamp));
 
         let connection = query(
             Some(after.to_rfc3339()),
@@ -314,13 +341,8 @@ impl QueryRoot {
             .unwrap_or_default())
     }
 
-    /// Returns the current IOTA to EUR price
-    async fn get_iota_eur_price(&self) -> Result<f64> {
-        Ok(get_iota_eur_price().await)
-    }
-
-    /// Returns the current IOTA to USD price
-    async fn get_iota_usd_price(&self) -> Result<f64> {
-        Ok(get_iota_usd_price().await)
+    /// Returns all conversion rates
+    async fn get_conversion_rates(&self) -> Result<ConversionRatesDto> {
+        Ok(ConversionRatesDto::from(get_conversion_rates().await))
     }
 }

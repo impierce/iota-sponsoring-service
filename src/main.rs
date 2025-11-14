@@ -37,6 +37,18 @@ async fn main() {
     let gas_station_config_path = env::var("GAS_STATION_CONFIG_PATH")
         .unwrap_or_else(|_| "./gas-station.config.yaml".to_string());
 
+    // Check whether CORS needs to be enabled
+    let cors_enabled = env::var("CORS_ENABLED")
+        .unwrap_or_else(|_| "false".to_string())
+        .to_lowercase()
+        == "true";
+
+    // Check whether Demo data initialization is enabled
+    let demo_data_initialization_enabled = env::var("DEMO_DATA_INITIALIZATION_ENABLED")
+        .unwrap_or_else(|_| "false".to_string())
+        .to_lowercase()
+        == "true";
+
     info!(log_format = %log_format, "Log format configured");
     info!(server_address = %addr, "Server address configured");
     info!(mongodb_uri = %mongo_uri, "MongoDB URI configured");
@@ -44,7 +56,12 @@ async fn main() {
 
     info!("Starting server");
 
-    let composition_root = CompositionRoot::new(mongo_uri, gas_station_config_path).await;
+    let composition_root = CompositionRoot::new(
+        mongo_uri,
+        gas_station_config_path,
+        demo_data_initialization_enabled,
+    )
+    .await;
 
-    axum_graphql::run(&addr, composition_root).await;
+    axum_graphql::run(&addr, cors_enabled, composition_root).await;
 }

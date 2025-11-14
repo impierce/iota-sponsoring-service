@@ -8,6 +8,8 @@ use application::{
     views::sponsor_wallet::SPONSOR_WALLET_VIEW_ID,
 };
 use async_graphql::{InputObject, Object};
+use balance_management::group::aggregate::Status;
+use balance_management::group::aggregate::Variant;
 use balance_management::{client::aggregate::Client, group::aggregate::Group};
 use cqrs_es::persist::PersistedEventStore;
 use mongo_es::MongoEventRepository;
@@ -108,6 +110,13 @@ impl MutationRoot {
         if let Some(logo_uri) = input.logo_uri {
             self.balance_management_service
                 .update_group_logo_uri(input.group_id, logo_uri)
+                .await?;
+        }
+
+        if let Some(status) = input.status {
+            let status: Status = status.into();
+            self.balance_management_service
+                .update_group_status(input.group_id, status)
                 .await?;
         }
 
@@ -254,6 +263,8 @@ struct UpdateGroupInput {
     name: Option<String>,
     /// The new logo URI for the group.
     logo_uri: Option<Option<Url>>,
+    /// The new status for the group.
+    status: Option<StatusInput>,
 }
 
 #[derive(Debug, InputObject)]
@@ -268,4 +279,33 @@ struct UpdateClientInput {
     website_uri: Option<Option<Url>>,
     /// The new wallet address for the client.
     wallet_address: Option<String>,
+}
+
+#[derive(InputObject, Default, Debug, Clone, PartialEq)]
+pub struct StatusInput {
+    pub variant: String,
+}
+
+impl From<Status> for StatusInput {
+    fn from(status: Status) -> Self {
+        let variant = match status.variant {
+            Variant::Action => "action".to_string(),
+            Variant::Warning => "warning".to_string(),
+            Variant::Success => "success".to_string(),
+        };
+
+        Self { variant }
+    }
+}
+
+impl Into<Status> for StatusInput {
+    fn into(self) -> Status {
+        let variant = match self.variant.as_str() {
+            "action" => Variant::Action,
+            "warning" => Variant::Warning,
+            "success" => Variant::Success,
+            _ => Variant::default(),
+        };
+        Status { variant }
+    }
 }

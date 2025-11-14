@@ -62,12 +62,12 @@ impl Aggregate for SponsorWallet {
                 }])
             }
 
-            // For all other commands, the wallet must exist first.
-            _ if !has_been_created => {
-                debug!("Validation failed: Sponsor wallet not found");
-                Err(SponsorWalletNotFound)
-            }
-
+            // TODO: validate that this can be uncommented again
+            // // For all other commands, the wallet must exist first.
+            // _ if !has_been_created => {
+            //     debug!("Validation failed: Sponsor wallet not found");
+            //     Err(SponsorWalletNotFound)
+            // }
             UpdateSponsorWalletName { name } => Ok(vec![ClientNameUpdated { name }]),
             UpdateSponsorWalletLogoUri { logo_uri } => Ok(vec![ClientLogoUriUpdated { logo_uri }]),
 

@@ -264,6 +264,7 @@ dependencies = [
  "iota-gas-station",
  "iota-sdk 1.7.0",
  "iota-types",
+ "rand 0.9.2",
  "reqwest 0.12.24",
  "serde",
  "serde_json",
@@ -10050,6 +10051,7 @@ dependencies = [
  "js-sys",
  "rand 0.9.2",
  "serde",
+ "sha1_smol",
  "wasm-bindgen",
 ]
 

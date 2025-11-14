@@ -29,8 +29,6 @@ impl std::ops::DerefMut for SponsorWalletView {
 
 impl View<SponsorWallet> for SponsorWalletView {
     fn update(&mut self, event: &EventEnvelope<SponsorWallet>) {
-        println!("Updating SponsorWalletView with event: {:?}", event.payload);
-
         self.0.apply(event.payload.clone());
     }
 }

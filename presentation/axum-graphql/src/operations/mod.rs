@@ -6,9 +6,11 @@ use application::views::client::ClientView;
 use application::views::group::GroupView;
 use application::views::sponsor_wallet::SponsorWalletView;
 use application::views::sponsorship_transaction::SponsorshipTransactionView;
-use async_graphql::SimpleObject;
+use async_graphql::{InputObject, SimpleObject};
+use balance_management::group::aggregate::{Status, Variant};
 use chrono::{DateTime, Utc};
-use std::{collections::HashSet, f32::NAN};
+use serde::{Deserialize, Serialize};
+use std::collections::HashSet;
 use tracing::debug;
 use url::Url;
 use uuid::Uuid;
@@ -85,8 +87,6 @@ impl From<Vec<SponsorshipTransactionView>> for Metrics {
 
         // --- Step 2: Accumulate totals in a single pass ---
         for tx in &transactions {
-            debug!("Processing transaction: {:#?}", tx);
-
             // Always update the all_time period
             update_period_totals(&mut metrics.all_time, tx);
 
@@ -268,6 +268,35 @@ impl From<SponsorshipTransactionView> for SponsorshipTransactionDto {
     }
 }
 
+#[derive(SimpleObject, InputObject, Serialize, Deserialize, Default, Debug, Clone, PartialEq)]
+pub struct StatusDto {
+    pub variant: String,
+}
+
+impl From<Status> for StatusDto {
+    fn from(status: Status) -> Self {
+        let variant = match status.variant {
+            Variant::Action => "action".to_string(),
+            Variant::Warning => "warning".to_string(),
+            Variant::Success => "success".to_string(),
+        };
+
+        Self { variant }
+    }
+}
+
+impl Into<Status> for StatusDto {
+    fn into(self) -> Status {
+        let variant = match self.variant.as_str() {
+            "action" => Variant::Action,
+            "warning" => Variant::Warning,
+            "success" => Variant::Success,
+            _ => Variant::default(),
+        };
+        Status { variant }
+    }
+}
+
 #[derive(Debug, Clone, SimpleObject)]
 pub struct GroupDto {
     pub group_id: Uuid,
@@ -275,6 +304,7 @@ pub struct GroupDto {
     pub logo_uri: Option<Url>,
     pub balance: u64,
     pub members: HashSet<Uuid>,
+    pub status: StatusDto,
 
     pub metrics: Metrics,
 
@@ -293,11 +323,45 @@ impl From<GroupView> for GroupDto {
             logo_uri: inner.logo_uri,
             balance: inner.balance,
             members: inner.members,
+            status: StatusDto::from(inner.status),
 
             metrics: Metrics::default(),
 
             estimated_remaining_transactions: None,
             estimated_depletion_date: None,
+        }
+    }
+}
+
+#[derive(Debug, Clone, SimpleObject)]
+pub struct ConversionRatesDto {
+    pub nano_to_iot: f64,
+    pub iot_to_nano: f64,
+    pub nano_to_eur: f64,
+    pub eur_to_nano: f64,
+    pub nano_to_usd: f64,
+    pub usd_to_nano: f64,
+
+    pub iot_to_eur: f64,
+    pub eur_to_iot: f64,
+    pub iot_to_usd: f64,
+    pub usd_to_iot: f64,
+}
+
+impl From<(f64, f64, f64, f64, f64, f64, f64, f64, f64, f64)> for ConversionRatesDto {
+    fn from(rates: (f64, f64, f64, f64, f64, f64, f64, f64, f64, f64)) -> Self {
+        Self {
+            nano_to_iot: rates.0,
+            iot_to_nano: rates.1,
+            nano_to_eur: rates.2,
+            eur_to_nano: rates.3,
+            nano_to_usd: rates.4,
+            usd_to_nano: rates.5,
+
+            iot_to_eur: rates.6,
+            eur_to_iot: rates.7,
+            iot_to_usd: rates.8,
+            usd_to_iot: rates.9,
         }
     }
 }

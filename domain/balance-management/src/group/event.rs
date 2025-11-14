@@ -4,6 +4,8 @@ use serde::{Deserialize, Serialize};
 use url::Url;
 use uuid::Uuid;
 
+use crate::group::aggregate::Status;
+
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize, strum::Display)]
 pub enum GroupEvent {
     GroupCreated {
@@ -16,6 +18,9 @@ pub enum GroupEvent {
     },
     GroupLogoUriUpdated {
         logo_uri: Option<Url>,
+    },
+    GroupStatusUpdated {
+        status: Status,
     },
     GroupDeleted {
         group_id: Uuid,

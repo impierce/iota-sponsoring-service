@@ -3,7 +3,10 @@ use std::sync::Arc;
 use anyhow::{Result, anyhow};
 use balance_management::{
     client::{aggregate::Client, command::ClientCommand},
-    group::{aggregate::Group, command::GroupCommand},
+    group::{
+        aggregate::{Group, Status},
+        command::GroupCommand,
+    },
 };
 use cqrs_es::{CqrsFramework, EventStore, persist::ViewRepository};
 use serde::Deserialize;
@@ -147,6 +150,31 @@ where
             })?;
 
         info!("Successfully updated group logo URI");
+        Ok(view)
+    }
+
+    #[instrument(skip(self), fields(group_id = %group_id, status = ?status))]
+    pub async fn update_group_status(&self, group_id: Uuid, status: Status) -> Result<GroupView> {
+        info!("Updating group status");
+        let command = GroupCommand::UpdateGroupStatus { status };
+
+        debug!("Dispatching `UpdateGroupStatus` command");
+        self.group_handler
+            .execute(&group_id.to_string(), command)
+            .await?;
+
+        let view = self
+            .group_view
+            .load(&group_id.to_string())
+            .await?
+            .ok_or_else(|| {
+                anyhow!(
+                    "Group view not found after updating status for group `{}`",
+                    group_id
+                )
+            })?;
+
+        info!("Successfully updated group status");
         Ok(view)
     }
 
