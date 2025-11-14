@@ -1,0 +1,19 @@
+[sources.gas_station_logs]
+type = "docker_logs"
+include_containers = ["iota-gas-station"]
+
+[transforms.reshape_log]
+type = "remap"
+inputs = ["gas_station_logs"]
+source = '''
+# Replace the entire event with just the raw message string.
+. = .message
+'''
+
+[sinks.sponsoring_service_webhook]
+type = "http"
+inputs = ["reshape_log"]
+uri = "http://host.docker.internal:8000/webhook/transaction"
+# uri = "http://iota-sponsoring-service:8000/webhook/transaction"
+method = "post"
+encoding.codec = "json"
