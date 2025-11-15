@@ -107,7 +107,7 @@ where
 
         let command = GroupCommand::AllocateFundsToGroup {
             group_id,
-            amount: 10_000_000_000,
+            amount: 10_000_000,
         };
 
         debug!("Dispatching `AllocateFundsToGroup` command");
@@ -238,7 +238,7 @@ where
 
         let command = GroupCommand::AllocateFundsToGroup {
             group_id,
-            amount: 10_000_000_000,
+            amount: 10_000_000,
         };
 
         debug!("Dispatching `AllocateFundsToGroup` command");
@@ -362,7 +362,7 @@ where
 
         let command = GroupCommand::AllocateFundsToGroup {
             group_id,
-            amount: 10_000_000_000,
+            amount: 10_000_000,
         };
 
         debug!("Dispatching `AllocateFundsToGroup` command");

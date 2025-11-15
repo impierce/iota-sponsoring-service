@@ -59,6 +59,8 @@ async fn read_log_events(
         >,
     >,
 ) {
+    let total_balance_regex =
+        regex::Regex::new(r"Number of available gas coins in the pool: (?P<available_gas_coins>\d+), total balance: (?P<balance>\d+)").unwrap();
     let prior_balance_regex = regex::Regex::new(
         r"Total gas coin balance prior to execution: (?P<balance>\d+) reservation_id=",
     )
@@ -72,13 +74,35 @@ async fn read_log_events(
     let new_total_balance_regex =
         regex::Regex::new(r"After add_new_coins. New total balance: (?P<balance>\d+)").unwrap();
 
+    let mut total_balance = 0;
     let mut prior = 0;
     let mut after = 0;
     let mut wallet_addresss = String::new();
     let mut new_total_balance = 0;
 
     for event in events {
-        if let Some(captures) = prior_balance_regex.captures(&event.message) {
+        if let Some(captures) = total_balance_regex.captures(&event.message) {
+            if let Some(balance_match) = captures.name("balance") {
+                match balance_match.as_str().parse::<u64>() {
+                    Ok(total_balance_match) => {
+                        info!("Successfully parsed total balance: {total_balance_match}");
+
+                        total_balance = total_balance_match;
+
+                        allocation_service
+                            .record_balance_update(
+                                SPONSOR_WALLET_VIEW_ID.to_string(),
+                                total_balance,
+                            )
+                            .await
+                            .unwrap();
+                    }
+                    Err(e) => {
+                        warn!("Failed to parse total balance from log: {}", e);
+                    }
+                }
+            }
+        } else if let Some(captures) = prior_balance_regex.captures(&event.message) {
             if let Some(balance_match) = captures.name("balance") {
                 match balance_match.as_str().parse::<u64>() {
                     Ok(balance_prior) => {
@@ -225,6 +249,7 @@ async fn app(
 
     let app = Router::new()
         .route("/", get(graphiql))
+        .route("/readyz", get(|| async { "OK" }))
         .route("/webhook/transaction", post(handle_transaction_webhook))
         .with_state(allocation_service)
         .route(

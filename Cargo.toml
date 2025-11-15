@@ -34,7 +34,7 @@ anyhow = "1.0"
 async-trait = "0.1"
 chrono = { version = "0.4", features = ["serde"] }
 cqrs-es = "0.4"
-iota-gas-station = { path = "submodules/gas-station" }
+iota-gas-station = { git = "https://github.com/iotaledger/gas-station", rev = "4b375e7" }
 rand = "0.9"
 reqwest = { version = "0.12", features = ["json"] }
 serde = { version = "1", features = ["derive"] }

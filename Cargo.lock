@@ -4239,6 +4239,7 @@ dependencies = [
 [[package]]
 name = "iota-gas-station"
 version = "0.3.0"
+source = "git+https://github.com/iotaledger/gas-station?rev=4b375e7#4b375e7a596574af2987e9ec90e3df63b464378b"
 dependencies = [
  "anyhow",
  "arc-swap",

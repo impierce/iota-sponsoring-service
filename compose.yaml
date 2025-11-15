@@ -15,17 +15,46 @@ services:
   iota-sponsoring-service:
     build: .
     depends_on:
-      - mongodb
+      mongodb:
+        condition: service_healthy
     environment:
       - SERVER_ADDRESS=0.0.0.0:8000
       - MONGODB_URI=mongodb://mongodb:27017/iota-sponsoring-service?directConnection=true&retryWrites=false&replicaSet=rs0
       - GAS_STATION_CONFIG_PATH=/app/gas-station.config.yaml
       - GIT_REVISION=${GIT_REVISION:-unknown}
+      - RUST_LOG=debug
+      - LOG_FORMAT=text
+      - DEMO_DATA_INITIALIZATION_ENABLED=true
+      - CORS_ENABLED=true
     ports:
       - "8000:8000"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8000/readyz"]
+      interval: 5s
+      timeout: 2s
+      retries: 20
     restart: unless-stopped
     volumes:
-      - ${LOCAL_CONFIG_PATH:-./gas-station.config.yaml}:/app/gas-station.config.yaml
+      - ${LOCAL_CONFIG_PATH:-../gas-station.config.yaml}:/app/gas-station.config.yaml
+
+  iota-sponsoring-ui:
+    build:
+      context: ../iot-gasstation-app
+      dockerfile: Dockerfile.bun
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000/graphql
+        NEXT_PUBLIC_WS_URL: ws://localhost:8000/graphql
+
+    depends_on:
+      iota-sponsoring-service:
+        condition: service_healthy
+    environment:
+      - NODE_ENV=development
+      - NEXT_PUBLIC_API_URL=http://localhost:8000/graphql
+      - NEXT_PUBLIC_WS_URL=wss://localhost:8000/graphql
+    ports:
+      - "3000:3000"
+    restart: unless-stopped
 
   redis:
     image: redis:latest
@@ -44,7 +73,10 @@ services:
     container_name: iota-gas-station
     command: ["--config-path", "/app/config.yaml"]
     depends_on:
-      - redis
+      redis:
+        condition: service_started
+      iota-sponsoring-service:
+        condition: service_healthy
     ports:
       - "9527:9527" # RPC port
       - "9184:9184" # Metrics port
@@ -54,9 +86,7 @@ services:
       - GAS_STATION_AUTH=${GAS_STATION_AUTH:-}
       - TRANSACTIONS_LOGGING=true
     volumes:
-      - ${LOCAL_CONFIG_PATH:-./gas-station.config.yaml}:/app/config.yaml
-    # extra_hosts:
-    #   - "host.docker.internal:host-gateway"
+      - ${LOCAL_CONFIG_PATH:-../gas-station.config.yaml}:/app/config.yaml
 
   vector:
     image: timberio/vector:latest-alpine
@@ -68,8 +98,6 @@ services:
     restart: unless-stopped
     depends_on:
       - iota-sponsoring-service
-    # extra_hosts:
-    #   - "host.docker.internal:host-gateway"
 
 volumes:
   mongodb_data:
