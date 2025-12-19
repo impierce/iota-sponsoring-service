@@ -313,7 +313,7 @@ where
                     iota_address: wallet_address,
                 } = reqwest::get(
                     website_uri
-                        .join("/.well-known/sponsoring-configuration")
+                        .join("/public/sponsoring-configuration")
                         .unwrap()
                         .as_str(),
                 )
