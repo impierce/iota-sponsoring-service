@@ -12,7 +12,7 @@ async-graphql = "7.0"
 async-graphql-axum = "7.0"
 async-trait.workspace = true
 axum = { version = "0.8", features = ["ws"] }
-bytes = "1.10"
+bytes = "1.11"
 chrono.workspace = true
 futures-util = "0.3"
 iota-config = { git = "https://github.com/iotaledger/iota", tag = "v1.7.0", package = "iota-config" }
